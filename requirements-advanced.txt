@@ -1,0 +1,52 @@
+# Advanced Financial Analysis Packages
+# These packages may require additional setup or have compatibility issues
+
+# Technical Analysis Library (requires separate C library installation)
+# Installation: https://ta-lib.github.io/ta-lib-python/
+ta-lib>=0.4.0
+
+# QuantLib (complex installation, especially on Windows)
+# Installation guide: https://quantlib-python-docs.readthedocs.io/
+quantlib>=1.31
+
+# Alpha Vantage API (requires API key)
+# Get API key: https://www.alphavantage.co/
+alpha-vantage>=2.3.0
+
+# Alternative backtesting frameworks
+backtrader>=1.9.0
+
+# Zipline (may have compatibility issues with newer Python versions)
+# Note: zipline-reloaded is a community fork
+zipline-reloaded>=2.2.0
+
+# Portfolio analysis (has Python 3.11+ compatibility issues)
+# Alternative: use our built-in performance metrics
+# pyfolio>=0.9.0
+
+# Performance metrics library
+empyrical>=0.5.0
+
+# Additional ML libraries
+tensorflow>=2.13.0
+torch>=2.0.0
+xgboost>=1.7.0
+lightgbm>=4.0.0
+
+# Alternative data providers
+quandl>=3.7.0
+pandas-datareader>=0.10.0
+investpy>=1.0.8
+
+# Advanced plotting
+plotly-dash>=2.14.0
+mplfinance>=0.12.0
+
+# Database connectors
+psycopg2-binary>=2.9.0  # PostgreSQL
+pymongo>=4.5.0  # MongoDB
+redis>=4.6.0  # Redis
+
+# Performance optimization
+numba>=0.58.0
+cython>=3.0.0

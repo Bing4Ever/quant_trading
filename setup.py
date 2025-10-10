@@ -2,19 +2,36 @@
 Setup configuration for the quantitative trading system.
 """
 
-from setuptools import setup, find_packages
 import pathlib
+
+from setuptools import find_packages, setup
 
 # Read the README file for long description
 HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text(encoding="utf-8")
 
 # Read requirements from requirements.txt
-REQUIREMENTS = [
-    line.strip()
-    for line in open("requirements.txt", encoding="utf-8").readlines()
-    if line.strip() and not line.startswith("#")
-]
+def read_requirements(filename):
+    """Read requirements from file, filtering out comments and empty lines."""
+    with open(filename, encoding="utf-8") as f:
+        return [
+            line.strip()
+            for line in f.readlines()
+            if line.strip() and not line.startswith("#")
+        ]
+
+try:
+    REQUIREMENTS = read_requirements("requirements.txt")
+except FileNotFoundError:
+    # Fallback to essential requirements if file not found
+    REQUIREMENTS = [
+        "pandas>=2.0.0",
+        "numpy>=1.24.0", 
+        "yfinance>=0.2.0",
+        "matplotlib>=3.7.0",
+        "scikit-learn>=1.3.0",
+        "pyyaml>=6.0.0",
+    ]
 
 setup(
     name="quant-trading-system",
@@ -56,17 +73,31 @@ setup(
             "flake8>=6.0.0",
             "mypy>=1.5.0",
             "bandit>=1.7.0",
+            "pre-commit>=3.4.0",
         ],
         "notebook": [
             "jupyter>=1.0.0",
             "ipykernel>=6.25.0",
-            "jupyterlab>=3.6.0",
+            "jupyterlab>=4.0.0",
+        ],
+        "advanced": [
+            "alpha-vantage>=2.3.0",
+            "backtrader>=1.9.0",
+            "empyrical>=0.5.0",
+            # Note: ta-lib, quantlib require manual installation
         ],
         "ml": [
-            "tensorflow>=2.13.0",
-            "torch>=2.0.0",
             "xgboost>=1.7.0",
             "lightgbm>=4.0.0",
+            # Note: tensorflow, torch are large packages
+        ],
+        "all": [
+            "pytest>=7.4.0",
+            "pytest-cov>=4.1.0", 
+            "black>=23.0.0",
+            "jupyter>=1.0.0",
+            "alpha-vantage>=2.3.0",
+            "empyrical>=0.5.0",
         ],
     },
     entry_points={

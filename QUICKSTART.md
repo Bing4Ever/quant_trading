@@ -2,14 +2,20 @@
 
 ## 🚀 快速开始
 
-### 1. 安装依赖
+### 1. 激活环境并安装依赖
 
 ```bash
+# 激活项目的conda环境
+conda activate quanttrading
+
 # 安装基础依赖
 pip install pandas numpy matplotlib seaborn plotly yfinance scikit-learn pyyaml
 
 # 安装开发工具
-pip install jupyter pytest python-dotenv
+pip install jupyter pytest python-dotenv sqlalchemy requests scipy
+
+# 或者一次性安装所有依赖
+pip install -r requirements.txt
 ```
 
 ### 2. 配置系统
