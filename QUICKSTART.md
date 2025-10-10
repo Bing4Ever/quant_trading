@@ -20,13 +20,38 @@ pip install -r requirements.txt
 
 ### 2. 配置系统
 
-```bash
-# 复制配置文件
-copy config\config.example.yaml config\config.yaml
+#### 配置API密钥（必需）
 
-# 编辑配置文件，添加你的API密钥
-notepad config\config.yaml
+系统现在使用环境变量来管理API密钥，更加安全：
+
+```bash
+# 复制环境变量示例文件
+copy config\.env.example config\.env
+
+# 编辑 .env 文件，添加你的API密钥
+notepad config\.env
 ```
+
+在 `.env` 文件中添加你的API密钥：
+```bash
+# 必需的API密钥
+ALPHA_VANTAGE_API_KEY=your_actual_alpha_vantage_api_key_here
+QUANDL_API_KEY=your_actual_quandl_api_key_here
+
+# 其他配置
+INITIAL_CAPITAL=100000.0
+PAPER_TRADING=true
+LOG_LEVEL=INFO
+```
+
+#### 获取API密钥
+
+- **Alpha Vantage**: 访问 https://www.alphavantage.co/support/#api-key 获取免费API密钥
+- **Quandl**: 访问 https://www.quandl.com/tools/api 获取免费API密钥
+
+> **注意**：
+> - API密钥现在通过环境变量管理，不再存储在配置文件中
+> - `.env` 文件已被自动添加到 `.gitignore`，不会被提交到版本控制
 
 ### 3. 运行示例
 

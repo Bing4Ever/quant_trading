@@ -2,9 +2,9 @@
 market_data:
   default_provider: "yfinance"  # yfinance, alpha_vantage, quandl
   
-  # API Keys (add your actual keys)
-  alpha_vantage_api_key: "YOUR_ALPHA_VANTAGE_API_KEY"
-  quandl_api_key: "YOUR_QUANDL_API_KEY"
+  # API Keys are now loaded from environment variables:
+  # - ALPHA_VANTAGE_API_KEY
+  # - QUANDL_API_KEY
   
   # Data storage
   data_directory: "./data/"

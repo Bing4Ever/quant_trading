@@ -95,8 +95,8 @@ def main():
     print("\n✨ Example completed! Check the strategies and backtesting modules for more details.")
     print("\n💡 Next steps:")
     print("   1. Install dependencies: pip install -r requirements.txt")
-    print("   2. Copy config/config.example.yaml to config/config.yaml")
-    print("   3. Add your API keys to the config file")
+    print("   2. Copy config/.env.example to config/.env")
+    print("   3. Add your API keys to the .env file")
     print("   4. Explore the notebooks/ directory for analysis examples")
 
 

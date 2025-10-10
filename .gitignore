@@ -106,7 +106,6 @@ data/*.csv
 data/*.pkl
 data/*.h5
 *.db
-config/config.yaml
 logs/
 results/
 backtest_results/
