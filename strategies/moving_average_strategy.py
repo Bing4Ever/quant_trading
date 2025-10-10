@@ -43,7 +43,7 @@ class MovingAverageStrategy(BaseStrategy):
             short_window=short_window, long_window=long_window, ma_type=ma_type
         )
 
-    def generate_signals(self, market_data: pd.DataFrame) -> pd.DataFrame:
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Generate trading signals based on moving average crossover.
 
@@ -53,14 +53,14 @@ class MovingAverageStrategy(BaseStrategy):
         - HOLD signal otherwise
 
         Args:
-            market_data: Market data DataFrame with OHLCV columns
+            data: Market data DataFrame with OHLCV columns
 
         Returns:
             DataFrame with trading signals and moving averages
         """
-        if not self.validate_data(market_data):
+        if not self.validate_data(data):
             raise ValueError("Invalid data format")
-        df = market_data.copy()
+        df = data.copy()
         short_window = self.get_parameter("short_window", 20)
         long_window = self.get_parameter("long_window", 50)
         ma_type = self.get_parameter("ma_type", "sma")
@@ -208,7 +208,7 @@ class MovingAverageStrategy(BaseStrategy):
                             "long_window": long_window,
                         }
 
-                except Exception as e:
+                except (ValueError, KeyError) as e:
                     print(
                         f"Error optimizing parameters {short_window}, {long_window}: {e}"
                     )

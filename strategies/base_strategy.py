@@ -57,7 +57,6 @@ class BaseStrategy(ABC):
         Returns:
             DataFrame with trading signals
         """
-        pass
 
     def set_parameters(self, **kwargs):
         """
@@ -267,16 +266,16 @@ class BaseStrategy(ABC):
         positions = []
         portfolio_values = []
 
-        for i, (date, row) in enumerate(data.iterrows()):
+        for i, row in enumerate(data.iterrows()):
             if i < len(signals):
                 signal = signals.iloc[i]["signal"] if "signal" in signals.columns else 0
                 position_size = self.calculate_position_size(
-                    signal, row["close"], capital
+                    signal, row[1]["close"], capital
                 )
 
                 # Simple position tracking
                 if position_size != 0:
-                    trade_cost = abs(position_size * row["close"] * commission)
+                    trade_cost = abs(position_size * row[1]["close"] * commission)
                     capital -= trade_cost
 
                 positions.append(position_size)

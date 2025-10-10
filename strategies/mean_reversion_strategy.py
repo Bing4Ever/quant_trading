@@ -57,7 +57,7 @@ class MeanReversionStrategy(BaseStrategy):
             rsi_overbought=rsi_overbought,
         )
 
-    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+    def generate_signals(self, market_data: pd.DataFrame) -> pd.DataFrame:
         """
         Generate mean reversion signals based on Bollinger Bands and RSI.
 
@@ -67,15 +67,15 @@ class MeanReversionStrategy(BaseStrategy):
         - CLOSE signal when price returns to middle Bollinger Band
 
         Args:
-            data: Market data DataFrame with OHLCV columns
+            market_data: Market data DataFrame with OHLCV columns
 
         Returns:
             DataFrame with trading signals and indicators
         """
-        if not self.validate_data(data):
+        if not self.validate_data(market_data):
             raise ValueError("Invalid data format")
 
-        df = data.copy()
+        df = market_data.copy()
 
         # Get parameters
         bb_period = self.get_parameter("bb_period", 20)
