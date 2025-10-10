@@ -47,7 +47,7 @@ class BaseStrategy(ABC):
         self.performance_metrics = {}
 
     @abstractmethod
-    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+    def generate_signals(self, market_data: pd.DataFrame) -> pd.DataFrame:
         """
         Generate trading signals based on market data.
 
