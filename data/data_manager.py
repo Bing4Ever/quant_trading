@@ -141,12 +141,12 @@ class DataManager:
             # Update last update timestamp
             self._update_timestamp(symbol)
 
+        except pd.errors.EmptyDataError as e:
+            print(f"Pandas empty data error updating data for {symbol}: {e}")
         except (sqlite3.DatabaseError, ValueError) as e:
             print(f"Database or value error updating data for {symbol}: {e}")
         except sqlite3.Error as e:
             print(f"SQLite error updating data for {symbol}: {e}")
-        except pd.errors.EmptyDataError as e:
-            print(f"Pandas empty data error updating data for {symbol}: {e}")
 
     def _store_data(self, symbol: str, data: pd.DataFrame):
         """Store data in database."""
