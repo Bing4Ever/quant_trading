@@ -1,0 +1,57 @@
+# Market Data Configuration
+market_data:
+  default_provider: "yfinance"  # yfinance, alpha_vantage, quandl
+  
+  # API Keys (add your actual keys)
+  alpha_vantage_api_key: "YOUR_ALPHA_VANTAGE_API_KEY"
+  quandl_api_key: "YOUR_QUANDL_API_KEY"
+  
+  # Data storage
+  data_directory: "./data/"
+  database_url: "sqlite:///market_data.db"
+  
+  # Default symbols to track
+  default_symbols:
+    - "AAPL"
+    - "GOOGL"
+    - "MSFT"
+    - "TSLA"
+    - "SPY"
+
+# Trading Configuration
+trading:
+  # Default parameters
+  initial_capital: 100000.0
+  commission: 0.001  # 0.1% per trade
+  slippage: 0.0005   # 0.05% slippage
+  
+  # Risk management
+  max_position_size: 0.1  # Maximum 10% per position
+  max_portfolio_risk: 0.02  # Maximum 2% portfolio risk per trade
+  stop_loss_pct: 0.05  # 5% stop loss
+  take_profit_pct: 0.15  # 15% take profit
+
+# Backtesting Configuration
+backtesting:
+  start_date: "2020-01-01"
+  end_date: "2023-12-31"
+  benchmark: "SPY"
+  
+  # Performance metrics
+  risk_free_rate: 0.02  # 2% annual risk-free rate
+  
+# Risk Management
+risk_management:
+  var_confidence: 0.95  # 95% confidence for VaR
+  var_lookback_days: 252  # 1 year lookback
+  max_correlation: 0.7  # Maximum correlation between positions
+  
+  # Position sizing
+  volatility_lookback: 30  # Days for volatility calculation
+  volatility_target: 0.15  # 15% annual volatility target
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  file: "./logs/trading.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
