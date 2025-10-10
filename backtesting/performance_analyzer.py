@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
 class PerformanceAnalyzer:
     """
     Analyze and visualize trading strategy performance.
@@ -233,38 +234,59 @@ class PerformanceAnalyzer:
             Formatted string report
         """
         metrics = self.calculate_metrics()
+        
+        # Handle cases where metrics might be empty
+        if not metrics:
+            return """
+=== PERFORMANCE ANALYSIS REPORT ===
+No data available for analysis.
+=== END REPORT ===
+        """
+        
+        # Handle infinite and NaN values safely
+        def format_value(key: str, format_spec: str) -> str:
+            value = metrics.get(key, 0.0)
+            if pd.isna(value):
+                return "N/A"
+            elif value == float('inf'):
+                return "∞"
+            elif value == float('-inf'):
+                return "-∞"
+            else:
+                try:
+                    return format_spec.format(value)
+                except (ValueError, TypeError):
+                    return "N/A"
 
-        report = """
+        report = f"""
 === PERFORMANCE ANALYSIS REPORT ===
 
 RETURN METRICS:
-Total Return:           {total_return:.2%}
-Annualized Return:      {annualized_return:.2%}
-Volatility:             {volatility:.2%}
+Total Return:           {format_value('total_return', '{:.2%}')}
+Annualized Return:      {format_value('annualized_return', '{:.2%}')}
+Volatility:             {format_value('volatility', '{:.2%}')}
 
 RISK-ADJUSTED METRICS:
-Sharpe Ratio:           {sharpe_ratio:.4f}
-Sortino Ratio:          {sortino_ratio:.4f}
-Calmar Ratio:           {calmar_ratio:.4f}
+Sharpe Ratio:           {format_value('sharpe_ratio', '{:.4f}')}
+Sortino Ratio:          {format_value('sortino_ratio', '{:.4f}')}
+Calmar Ratio:           {format_value('calmar_ratio', '{:.4f}')}
 
 DRAWDOWN ANALYSIS:
-Maximum Drawdown:       {max_drawdown:.2%}
-Average Drawdown:       {avg_drawdown:.2%}
+Maximum Drawdown:       {format_value('max_drawdown', '{:.2%}')}
+Average Drawdown:       {format_value('avg_drawdown', '{:.2%}')}
 
 WIN/LOSS ANALYSIS:
-Win Rate:               {win_rate:.2%}
-Average Win:            {avg_win:.4f}
-Average Loss:           {avg_loss:.4f}
-Profit Factor:          {profit_factor:.2f}
+Win Rate:               {format_value('win_rate', '{:.2%}')}
+Average Win:            {format_value('avg_win', '{:.4f}')}
+Average Loss:           {format_value('avg_loss', '{:.4f}')}
+Profit Factor:          {format_value('profit_factor', '{:.2f}')}
 
 DISTRIBUTION METRICS:
-Skewness:               {skewness:.4f}
-Kurtosis:               {kurtosis:.4f}
+Skewness:               {format_value('skewness', '{:.4f}')}
+Kurtosis:               {format_value('kurtosis', '{:.4f}')}
 
 === END REPORT ===
-        """.format(
-            **metrics
-        )
+        """
 
         return report
 

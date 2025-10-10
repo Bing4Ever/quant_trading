@@ -2,7 +2,7 @@
 Comprehensive backtesting engine for trading strategies.
 """
 
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any, Union, Tuple
 from datetime import datetime
 import warnings
 import pandas as pd
@@ -129,58 +129,70 @@ class BacktestEngine:
         """
         self._reset_state()
 
-        # Handle single asset vs multi-asset data
-        if isinstance(data, pd.DataFrame):
-            # Single asset
-            symbols = ["SINGLE_ASSET"]
-            data_dict = {"SINGLE_ASSET": data}
-        else:
-            # Multiple assets
-            symbols = list(data.keys())
-            data_dict = data
-
-        # Filter data by date range
-        if start_date or end_date:
-            filtered_data = {}
-            for symbol, df in data_dict.items():
-                filtered_df = df.copy()
-                if start_date:
-                    filtered_df = filtered_df[filtered_df.index >= start_date]
-                if end_date:
-                    filtered_df = filtered_df[filtered_df.index <= end_date]
-                filtered_data[symbol] = filtered_df
-            data_dict = filtered_data
-
-        # Get all unique dates and sort
-        all_dates = set()
-        for df in data_dict.values():
-            all_dates.update(df.index)
-        all_dates = sorted(list(all_dates))
+        symbols, data_dict = self._prepare_data(data)
+        data_dict = self._filter_data_by_date(data_dict, start_date, end_date)
+        all_dates = self._get_all_dates(data_dict)
 
         if not all_dates:
             raise ValueError("No data available for backtesting")
 
-        # Generate signals for each asset
+        signals_dict = self._generate_signals(strategy, data_dict)
+
+        for date in all_dates:
+            self._process_day(date, data_dict, signals_dict, symbols)
+
+        self._close_all_positions(all_dates[-1], data_dict)
+        results = self._calculate_performance_metrics(benchmark_data)
+
+        return results
+
+    def _prepare_data(
+        self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]]
+    ) -> Tuple[List[str], Dict[str, pd.DataFrame]]:
+        """Prepare symbols and data dictionary based on input data type."""
+        if isinstance(data, pd.DataFrame):
+            symbols = ["SINGLE_ASSET"]
+            data_dict = {"SINGLE_ASSET": data}
+        else:
+            symbols = list(data.keys())
+            data_dict = data
+        return symbols, data_dict
+
+    def _filter_data_by_date(
+        self, data_dict: Dict[str, pd.DataFrame], start_date: str, end_date: str
+    ) -> Dict[str, pd.DataFrame]:
+        """Filter data by date range."""
+        if not (start_date or end_date):
+            return data_dict
+        filtered_data = {}
+        for symbol, df in data_dict.items():
+            filtered_df = df.copy()
+            if start_date:
+                filtered_df = filtered_df[filtered_df.index >= start_date]
+            if end_date:
+                filtered_df = filtered_df[filtered_df.index <= end_date]
+            filtered_data[symbol] = filtered_df
+        return filtered_data
+
+    def _get_all_dates(self, data_dict: Dict[str, pd.DataFrame]) -> List[datetime]:
+        """Get all unique dates from data dictionary and sort them."""
+        all_dates = set()
+        for df in data_dict.values():
+            all_dates.update(df.index)
+        return sorted(all_dates)
+
+    def _generate_signals(
+        self, strategy, data_dict: Dict[str, pd.DataFrame]
+    ) -> Dict[str, pd.DataFrame]:
+        """Generate signals for each asset."""
         signals_dict = {}
         for symbol, df in data_dict.items():
             try:
                 signals = strategy.generate_signals(df)
                 signals_dict[symbol] = signals
-            except Exception as e:
+            except (ValueError, KeyError) as e:
                 warnings.warn(f"Error generating signals for {symbol}: {e}")
-                continue
-
-        # Run simulation day by day
-        for date in all_dates:
-            self._process_day(date, data_dict, signals_dict, symbols)
-
-        # Close any remaining open positions
-        self._close_all_positions(all_dates[-1], data_dict)
-
-        # Calculate performance metrics
-        results = self._calculate_performance_metrics(benchmark_data)
-
-        return results
+        return signals_dict
 
     def _reset_state(self):
         """Reset engine state for new backtest."""
@@ -202,38 +214,9 @@ class BacktestEngine:
         symbols: List[str],
     ):
         """Process a single trading day."""
-        day_start_capital = self.current_capital
 
-        # Process each symbol
         for symbol in symbols:
-            if symbol not in data_dict or symbol not in signals_dict:
-                continue
-
-            df = data_dict[symbol]
-            signals = signals_dict[symbol]
-
-            # Check if we have data for this date
-            if date not in df.index:
-                continue
-
-            price_data = df.loc[date]
-
-            # Find corresponding signal
-            signal_idx = None
-            for i, signal_date in enumerate(signals.index):
-                if signal_date <= date:
-                    signal_idx = i
-                else:
-                    break
-
-            if signal_idx is None:
-                continue
-
-            signal_data = signals.iloc[signal_idx]
-            signal = signal_data.get("signal", 0)
-
-            if signal != 0:
-                self._execute_trade(symbol, date, price_data, signal)
+            self._process_symbol_for_day(symbol, date, data_dict, signals_dict)
 
         # Calculate portfolio value
         portfolio_value = self._calculate_portfolio_value(date, data_dict)
@@ -254,6 +237,42 @@ class BacktestEngine:
         else:
             self.daily_returns.append(0.0)
 
+    def _process_symbol_for_day(
+        self,
+        symbol: str,
+        date: datetime,
+        data_dict: Dict[str, pd.DataFrame],
+        signals_dict: Dict[str, pd.DataFrame],
+    ):
+        """Process trading logic for a single symbol on a given day."""
+        if symbol not in data_dict or symbol not in signals_dict:
+            return
+
+        df = data_dict[symbol]
+        signals = signals_dict[symbol]
+
+        if date not in df.index:
+            return
+
+        price_data = df.loc[date]
+
+        # Find corresponding signal
+        signal_idx = None
+        for i, signal_date in enumerate(signals.index):
+            if signal_date <= date:
+                signal_idx = i
+            else:
+                break
+
+        if signal_idx is None:
+            return
+
+        signal_data = signals.iloc[signal_idx]
+        signal = signal_data.get("signal", 0)
+
+        if signal != 0:
+            self._execute_trade(symbol, date, price_data, signal)
+
     def _execute_trade(
         self, symbol: str, date: datetime, price_data: pd.Series, signal: float
     ):
@@ -261,10 +280,9 @@ class BacktestEngine:
         price = price_data["close"]
 
         # Apply slippage
-        if signal > 0:  # Buy
-            execution_price = price * (1 + self.slippage)
-        else:  # Sell
-            execution_price = price * (1 - self.slippage)
+        execution_price = (
+            price * (1 + self.slippage) if signal > 0 else price * (1 - self.slippage)
+        )
 
         # Calculate position size
         position_value = abs(signal) * self.current_capital * 0.1  # 10% max position
@@ -279,28 +297,59 @@ class BacktestEngine:
 
         current_position = self.positions.get(symbol, 0)
 
-        if signal > 0:  # Buy signal
-            if current_position <= 0:  # Open long or close short
-                if current_position < 0:
-                    # Close short position first
-                    self._close_position(symbol, date, execution_price, commission / 2)
+        if signal > 0:
+            self._handle_buy_signal(
+                symbol,
+                date,
+                execution_price,
+                trade_value,
+                commission,
+                quantity,
+                current_position,
+            )
+        else:
+            self._handle_sell_signal(
+                symbol, date, execution_price, commission, current_position
+            )
 
-                # Open long position
-                if self.current_capital >= trade_value + commission:
-                    self.current_capital -= trade_value + commission
-                    self.positions[symbol] = quantity
+    def _handle_buy_signal(
+        self,
+        symbol: str,
+        date: datetime,
+        execution_price: float,
+        trade_value: float,
+        commission: float,
+        quantity: int,
+        current_position: int,
+    ):
+        """Handle buy signal logic."""
+        if current_position <= 0:
+            if current_position < 0:
+                # Close short position first
+                self._close_position(symbol, date, execution_price, commission / 2)
 
-                    trade = Trade(symbol, date, execution_price, quantity, "long")
-                    self.trades.append(trade)
+            # Open long position
+            if self.current_capital >= trade_value + commission:
+                self.current_capital -= trade_value + commission
+                self.positions[symbol] = quantity
 
-        else:  # Sell signal (signal < 0)
-            if current_position >= 0:  # Close long or open short
-                if current_position > 0:
-                    # Close long position
-                    self._close_position(symbol, date, execution_price, commission / 2)
+                trade = Trade(symbol, date, execution_price, quantity, "long")
+                self.trades.append(trade)
 
-                # For simplicity, we'll just close positions rather than short
-                # In a full implementation, you would handle short selling here
+    def _handle_sell_signal(
+        self,
+        symbol: str,
+        date: datetime,
+        execution_price: float,
+        commission: float,
+        current_position: int,
+    ):
+        """Handle sell signal logic."""
+        if current_position > 0:
+            # Close long position
+            self._close_position(symbol, date, execution_price, commission / 2)
+        # For simplicity, we'll just close positions rather than short
+        # In a full implementation, you would handle short selling here
 
     def _close_position(
         self, symbol: str, date: datetime, price: float, commission: float

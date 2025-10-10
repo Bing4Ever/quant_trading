@@ -50,15 +50,16 @@ class TestStrategies:
     def test_strategy_signal_generation(self):
         """Test signal generation with mock data."""
 
-        # Create mock data
+        # Create mock data using numpy.random.Generator with a fixed seed for reproducibility
+        rng = np.random.default_rng(seed=42)
         dates = pd.date_range(start="2023-01-01", periods=100, freq="D")
         data = pd.DataFrame(
             {
-                "open": np.random.randn(100).cumsum() + 100,
-                "high": np.random.randn(100).cumsum() + 105,
-                "low": np.random.randn(100).cumsum() + 95,
-                "close": np.random.randn(100).cumsum() + 100,
-                "volume": np.random.randint(1000, 10000, 100),
+                "open": rng.standard_normal(100).cumsum() + 100,
+                "high": rng.standard_normal(100).cumsum() + 105,
+                "low": rng.standard_normal(100).cumsum() + 95,
+                "close": rng.standard_normal(100).cumsum() + 100,
+                "volume": rng.integers(1000, 10000, 100),
             },
             index=dates,
         )

@@ -84,88 +84,17 @@ class MeanReversionStrategy(BaseStrategy):
         rsi_oversold = self.get_parameter("rsi_oversold", 30)
         rsi_overbought = self.get_parameter("rsi_overbought", 70)
 
-        # Calculate Bollinger Bands
-        df["bb_middle"] = df["close"].rolling(window=bb_period).mean()
-        bb_rolling_std = df["close"].rolling(window=bb_period).std()
-        df["bb_upper"] = df["bb_middle"] + (bb_rolling_std * bb_std)
-        df["bb_lower"] = df["bb_middle"] - (bb_rolling_std * bb_std)
+        df = self._add_bollinger_bands(df, bb_period, bb_std)
+        df = self._add_rsi(df, rsi_period)
+        df = self._add_additional_indicators(df)
 
-        # Calculate Bollinger Band position (0 = lower band, 1 = upper band)
-        df["bb_position"] = (df["close"] - df["bb_lower"]) / (
-            df["bb_upper"] - df["bb_lower"]
+        buy_condition, sell_condition, exit_long_condition, exit_short_condition = self._get_conditions(
+            df, rsi_oversold, rsi_overbought
         )
 
-        # Calculate RSI
-        delta = df["close"].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=rsi_period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
-        rs = gain / loss
-        df["rsi"] = 100 - (100 / (1 + rs))
-
-        # Calculate additional indicators
-        # Price distance from middle band
-        df["price_deviation"] = (df["close"] - df["bb_middle"]) / df["bb_middle"] * 100
-
-        # Bollinger Band width (volatility measure)
-        df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_middle"] * 100
-
-        # Initialize signals
-        df["signal"] = 0
-        df["position"] = 0
-
-        # Generate entry signals
-        # Buy when price is near lower band AND RSI is oversold
-        buy_condition = (
-            (df["close"] <= df["bb_lower"] * 1.01)  # Within 1% of lower band
-            & (df["rsi"] < rsi_oversold)
-            & (df["bb_width"] > df["bb_width"].rolling(50).mean())  # Higher volatility
+        df["signal"], df["position"] = self._generate_trade_signals(
+            df, buy_condition, sell_condition, exit_long_condition, exit_short_condition
         )
-
-        # Sell when price is near upper band AND RSI is overbought
-        sell_condition = (
-            (df["close"] >= df["bb_upper"] * 0.99)  # Within 1% of upper band
-            & (df["rsi"] > rsi_overbought)
-            & (df["bb_width"] > df["bb_width"].rolling(50).mean())  # Higher volatility
-        )
-
-        # Exit conditions
-        # Exit long when price returns to middle band or RSI normalizes
-        exit_long_condition = (df["close"] >= df["bb_middle"]) | (df["rsi"] >= 50)
-
-        # Exit short when price returns to middle band or RSI normalizes
-        exit_short_condition = (df["close"] <= df["bb_middle"]) | (df["rsi"] <= 50)
-
-        # Apply signals
-        current_position = 0
-        positions = []
-        signals = []
-
-        for i in range(len(df)):
-            signal = 0
-
-            if current_position == 0:  # No position
-                if buy_condition.iloc[i]:
-                    signal = SignalType.BUY.value
-                    current_position = 1
-                elif sell_condition.iloc[i]:
-                    signal = SignalType.SELL.value
-                    current_position = -1
-
-            elif current_position == 1:  # Long position
-                if exit_long_condition.iloc[i] or sell_condition.iloc[i]:
-                    signal = SignalType.SELL.value
-                    current_position = 0
-
-            elif current_position == -1:  # Short position
-                if exit_short_condition.iloc[i] or buy_condition.iloc[i]:
-                    signal = SignalType.BUY.value
-                    current_position = 0
-
-            signals.append(signal)
-            positions.append(current_position)
-
-        df["signal"] = signals
-        df["position"] = positions
 
         # Add signal strength
         df["signal_strength"] = self._calculate_signal_strength(df)
@@ -187,37 +116,134 @@ class MeanReversionStrategy(BaseStrategy):
             ]
         ]
 
-    def _calculate_signal_strength(self, data: pd.DataFrame) -> pd.Series:
+    def _add_bollinger_bands(self, df: pd.DataFrame, bb_period: int, bb_std: float) -> pd.DataFrame:
+        df["bb_middle"] = df["close"].rolling(window=bb_period).mean()
+        bb_rolling_std = df["close"].rolling(window=bb_period).std()
+        df["bb_upper"] = df["bb_middle"] + (bb_rolling_std * bb_std)
+        df["bb_lower"] = df["bb_middle"] - (bb_rolling_std * bb_std)
+        df["bb_position"] = (df["close"] - df["bb_lower"]) / (
+            df["bb_upper"] - df["bb_lower"]
+        )
+        return df
+
+    def _add_rsi(self, df: pd.DataFrame, rsi_period: int) -> pd.DataFrame:
+        delta = df["close"].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=rsi_period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
+        rs = gain / loss
+        df["rsi"] = 100 - (100 / (1 + rs))
+        return df
+
+    def _add_additional_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["price_deviation"] = (df["close"] - df["bb_middle"]) / df["bb_middle"] * 100
+        df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_middle"] * 100
+        return df
+
+    def _get_conditions(
+        self, df: pd.DataFrame, rsi_oversold: float, rsi_overbought: float
+    ):
+        buy_condition = (
+            (df["close"] <= df["bb_lower"] * 1.01)
+            & (df["rsi"] < rsi_oversold)
+            & (df["bb_width"] > df["bb_width"].rolling(50).mean())
+        )
+        sell_condition = (
+            (df["close"] >= df["bb_upper"] * 0.99)
+            & (df["rsi"] > rsi_overbought)
+            & (df["bb_width"] > df["bb_width"].rolling(50).mean())
+        )
+        exit_long_condition = (df["close"] >= df["bb_middle"]) | (df["rsi"] >= 50)
+        exit_short_condition = (df["close"] <= df["bb_middle"]) | (df["rsi"] <= 50)
+        return buy_condition, sell_condition, exit_long_condition, exit_short_condition
+
+    def _generate_trade_signals(
+        self,
+        df: pd.DataFrame,
+        buy_condition: pd.Series,
+        sell_condition: pd.Series,
+        exit_long_condition: pd.Series,
+        exit_short_condition: pd.Series,
+    ):
+        current_position = 0
+        positions = []
+        signal_list = []
+
+        for i in range(len(df)):
+            signal, new_position = self._get_signal(
+                i, current_position, buy_condition, sell_condition, exit_long_condition, exit_short_condition
+            )
+            signal_list.append(signal)
+            positions.append(new_position)
+            current_position = new_position
+
+        return signal_list, positions
+
+    def _get_signal(
+        self,
+        i: int,
+        current_position: int,
+        buy_condition: pd.Series,
+        sell_condition: pd.Series,
+        exit_long_condition: pd.Series,
+        exit_short_condition: pd.Series,
+    ):
+        if current_position == 0:
+            return self._signal_flat(i, buy_condition, sell_condition)
+        elif current_position == 1:
+            return self._signal_long(i, exit_long_condition, sell_condition)
+        elif current_position == -1:
+            return self._signal_short(i, exit_short_condition, buy_condition)
+        else:
+            return 0, 0
+
+    def _signal_flat(self, i: int, buy_condition: pd.Series, sell_condition: pd.Series):
+        if buy_condition.iloc[i]:
+            return SignalType.BUY.value, 1
+        if sell_condition.iloc[i]:
+            return SignalType.SELL.value, -1
+        return 0, 0
+
+    def _signal_long(self, i: int, exit_long_condition: pd.Series, sell_condition: pd.Series):
+        if exit_long_condition.iloc[i] or sell_condition.iloc[i]:
+            return SignalType.SELL.value, 0
+        return 0, 1
+
+    def _signal_short(self, i: int, exit_short_condition: pd.Series, buy_condition: pd.Series):
+        if exit_short_condition.iloc[i] or buy_condition.iloc[i]:
+            return SignalType.BUY.value, 0
+        return 0, -1
+
+    def _calculate_signal_strength(self, indicators_df: pd.DataFrame) -> pd.Series:
         """
         Calculate signal strength based on how extreme the indicators are.
 
         Args:
-            data: DataFrame with calculated indicators
+            indicators_df: DataFrame with calculated indicators
 
         Returns:
             Series with signal strength values (0 to 1)
         """
         # RSI component
         rsi_strength = np.where(
-            data["rsi"] < 30,
-            (30 - data["rsi"]) / 30,  # Stronger when more oversold
+            indicators_df["rsi"] < 30,
+            (30 - indicators_df["rsi"]) / 30,  # Stronger when more oversold
             np.where(
-                data["rsi"] > 70,
-                (data["rsi"] - 70) / 30,  # Stronger when more overbought
+                indicators_df["rsi"] > 70,
+                (indicators_df["rsi"] - 70) / 30,  # Stronger when more overbought
                 0,
             ),
         )
 
         # Bollinger Band component
-        bb_strength = np.abs(data["bb_position"] - 0.5) * 2  # 0 at middle, 1 at bands
+        bb_strength = np.abs(indicators_df["bb_position"] - 0.5) * 2  # 0 at middle, 1 at bands
 
         # Combine components
         signal_strength = np.maximum(rsi_strength, bb_strength)
 
-        return pd.Series(signal_strength, index=data.index)
+        return pd.Series(signal_strength, index=indicators_df.index)
 
     def add_volume_filter(
-        self, data: pd.DataFrame, volume_ma_period: int = 20
+        self, market_data: pd.DataFrame, volume_ma_period: int = 20
     ) -> pd.DataFrame:
         """
         Add volume filter to improve signal quality.
@@ -225,13 +251,13 @@ class MeanReversionStrategy(BaseStrategy):
         Only takes signals when volume is above average.
 
         Args:
-            data: Market data with signals
+            market_data: Market data with signals
             volume_ma_period: Period for volume moving average
 
         Returns:
             DataFrame with volume-filtered signals
         """
-        df = data.copy()
+        df = market_data.copy()
 
         # Calculate volume moving average
         df["volume_ma"] = df["volume"].rolling(window=volume_ma_period).mean()
@@ -243,19 +269,19 @@ class MeanReversionStrategy(BaseStrategy):
         return df
 
     def add_trend_filter(
-        self, data: pd.DataFrame, trend_period: int = 50
+        self, market_data: pd.DataFrame, trend_period: int = 50
     ) -> pd.DataFrame:
         """
         Add trend filter - avoid counter-trend trades in strong trends.
 
         Args:
-            data: Market data with signals
+            market_data: Market data with signals
             trend_period: Period for trend determination
 
         Returns:
             DataFrame with trend-filtered signals
         """
-        df = data.copy()
+        df = market_data.copy()
 
         # Calculate trend
         df["trend_ma"] = df["close"].rolling(window=trend_period).mean()
@@ -275,7 +301,7 @@ class MeanReversionStrategy(BaseStrategy):
 
     def optimize_parameters(
         self,
-        data: pd.DataFrame,
+        market_data: pd.DataFrame,
         bb_period_range: tuple = (10, 30),
         rsi_period_range: tuple = (10, 20),
         rsi_threshold_range: tuple = (20, 40),
@@ -284,7 +310,7 @@ class MeanReversionStrategy(BaseStrategy):
         Optimize strategy parameters.
 
         Args:
-            data: Market data for optimization
+            market_data: Market data for optimization
             bb_period_range: Range for Bollinger Band period
             rsi_period_range: Range for RSI period
             rsi_threshold_range: Range for RSI thresholds
@@ -294,7 +320,7 @@ class MeanReversionStrategy(BaseStrategy):
         """
         best_params = {}
         best_return = -float("inf")
-        results = []
+        param_results = []
 
         for bb_period in range(bb_period_range[0], bb_period_range[1] + 1, 2):
             for rsi_period in range(rsi_period_range[0], rsi_period_range[1] + 1, 2):
@@ -312,10 +338,10 @@ class MeanReversionStrategy(BaseStrategy):
 
                     try:
                         # Run backtest
-                        backtest_results = self.backtest(data)
+                        backtest_results = self.backtest(market_data)
                         total_return = backtest_results["total_return"]
 
-                        results.append(
+                        param_results.append(
                             {
                                 "bb_period": bb_period,
                                 "rsi_period": rsi_period,
@@ -333,14 +359,14 @@ class MeanReversionStrategy(BaseStrategy):
                                 "rsi_overbought": 100 - rsi_threshold,
                             }
 
-                    except Exception as e:
+                    except (ValueError, KeyError) as e:
                         print(f"Error optimizing parameters: {e}")
                         continue
 
         return {
             "best_parameters": best_params,
             "best_return": best_return,
-            "all_results": results,
+            "all_results": param_results,
         }
 
     def get_strategy_description(self) -> str:
@@ -392,6 +418,6 @@ if __name__ == "__main__":
 
     # Run backtest
     results = strategy.backtest(data)
-    print(f"\nBacktest Results:")
+    print("\nBacktest Results:")
     print(f"Total Return: {results['total_return']:.2%}")
     print(f"Final Capital: ${results['final_capital']:,.2f}")

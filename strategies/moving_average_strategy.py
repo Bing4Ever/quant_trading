@@ -43,7 +43,7 @@ class MovingAverageStrategy(BaseStrategy):
             short_window=short_window, long_window=long_window, ma_type=ma_type
         )
 
-    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+    def generate_signals(self, market_data: pd.DataFrame) -> pd.DataFrame:
         """
         Generate trading signals based on moving average crossover.
 
@@ -53,14 +53,14 @@ class MovingAverageStrategy(BaseStrategy):
         - HOLD signal otherwise
 
         Args:
-            data: Market data DataFrame with OHLCV columns
+            market_data: Market data DataFrame with OHLCV columns
 
         Returns:
             DataFrame with trading signals and moving averages
         """
-        if not self.validate_data(data):
+        if not self.validate_data(market_data):
             raise ValueError("Invalid data format")
-        df = data.copy()
+        df = market_data.copy()
         short_window = self.get_parameter("short_window", 20)
         long_window = self.get_parameter("long_window", 50)
         ma_type = self.get_parameter("ma_type", "sma")
@@ -102,7 +102,7 @@ class MovingAverageStrategy(BaseStrategy):
         current_position = 0
         positions = []
 
-        for i, row in df.iterrows():
+        for _, row in df.iterrows():
             if row["signal"] == SignalType.BUY.value:
                 current_position = 1
             elif row["signal"] == SignalType.SELL.value:
@@ -124,7 +124,7 @@ class MovingAverageStrategy(BaseStrategy):
         return df[["signal", "position", "short_ma", "long_ma", "ma_spread"]]
 
     def add_trend_filter(
-        self, data: pd.DataFrame, trend_window: int = 200
+        self, signal_data: pd.DataFrame, trend_window: int = 200
     ) -> pd.DataFrame:
         """
         Add a trend filter to improve signal quality.
@@ -132,21 +132,19 @@ class MovingAverageStrategy(BaseStrategy):
         Only takes long positions when price is above long-term trend.
 
         Args:
-            data: Market data with signals
+            signal_data: Market data with signals
             trend_window: Period for trend filter moving average
 
         Returns:
             DataFrame with filtered signals
         """
-        df = data.copy()
+        df = signal_data.copy()
 
         # Calculate trend filter
         df["trend_ma"] = df["close"].rolling(window=trend_window).mean()
         df["trend_filter"] = df["close"] > df["trend_ma"]
 
         # Apply filter to signals
-        original_signals = df["signal"].copy()
-
         # Only allow buy signals when above trend
         df.loc[
             (df["signal"] == SignalType.BUY.value) & (~df["trend_filter"]), "signal"
@@ -161,7 +159,7 @@ class MovingAverageStrategy(BaseStrategy):
 
     def optimize_parameters(
         self,
-        data: pd.DataFrame,
+        market_data: pd.DataFrame,
         short_range: tuple = (5, 50),
         long_range: tuple = (20, 200),
         step: int = 5,
@@ -170,7 +168,7 @@ class MovingAverageStrategy(BaseStrategy):
         Optimize strategy parameters using grid search.
 
         Args:
-            data: Market data for optimization
+            market_data: Market data for optimization
             short_range: Range for short window (min, max)
             long_range: Range for long window (min, max)
             step: Step size for parameter search
@@ -180,7 +178,7 @@ class MovingAverageStrategy(BaseStrategy):
         """
         best_params = {}
         best_return = -float("inf")
-        results = []
+        optimization_results = []
 
         for short_window in range(short_range[0], short_range[1] + 1, step):
             for long_window in range(long_range[0], long_range[1] + 1, step):
@@ -192,10 +190,10 @@ class MovingAverageStrategy(BaseStrategy):
 
                 try:
                     # Run backtest
-                    backtest_results = self.backtest(data)
+                    backtest_results = self.backtest(market_data)
                     total_return = backtest_results["total_return"]
 
-                    results.append(
+                    optimization_results.append(
                         {
                             "short_window": short_window,
                             "long_window": long_window,
@@ -219,7 +217,7 @@ class MovingAverageStrategy(BaseStrategy):
         return {
             "best_parameters": best_params,
             "best_return": best_return,
-            "all_results": results,
+            "all_results": optimization_results,
         }
 
     def get_strategy_description(self) -> str:
@@ -267,6 +265,6 @@ if __name__ == "__main__":
 
     # Run backtest
     results = strategy.backtest(data)
-    print(f"\nBacktest Results:")
+    print("\nBacktest Results:")
     print(f"Total Return: {results['total_return']:.2%}")
     print(f"Final Capital: ${results['final_capital']:,.2f}")
