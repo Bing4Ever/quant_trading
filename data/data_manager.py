@@ -29,7 +29,7 @@ class DataManager:
             data_dir or config.get("market_data.data_directory", "./data/")
         )
         self.db_url = db_url or config.get(
-            "market_data.database_url", f"{SQLITE_PREFIX}market_data.db"
+            "market_data.database_url", f"{SQLITE_PREFIX}data/market_data.db"
         )
         self.data_fetcher = DataFetcher()
 

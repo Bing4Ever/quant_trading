@@ -18,7 +18,7 @@ MENU_SEPARATOR = "=" * 60
 
 def display_main_menu():
     """显示主菜单"""
-    print("\n" + MENU_SEPARATOR)
+    print(f"\n{MENU_SEPARATOR}")
     print("🚀 量化交易系统")
     print(MENU_SEPARATOR)
     print("请选择要启动的交易引擎:")
@@ -48,38 +48,41 @@ def display_main_menu():
 def handle_choice(choice: str) -> bool:
     """
     处理用户选择
-    
+
     Args:
         choice (str): 用户输入的选择
-        
+
     Returns:
         bool: 是否继续运行程序
     """
     if choice == "0":
         print("再见！")
         return False
- 
+
     if choice == "1":
         print("\n启动快速交易引擎...")
         # pylint: disable=import-outside-toplevel
         from trading.quick_trading_engine import main as quick_main
+
         quick_main()
     elif choice == "2":
         print("\n启动实时交易引擎...")
         # pylint: disable=import-outside-toplevel
         from trading.live_trading_engine import main as live_main
+
         live_main()
     elif choice == "3":
         print("\n启动高级交易引擎...")
         # pylint: disable=import-outside-toplevel
         from trading.advanced_trading_engine import main as advanced_main
+
         advanced_main()
     elif choice == "4":
         print("\n运行测试套件...")
         subprocess.run([sys.executable, "tests/run_tests.py"], check=False)
     else:
         print("无效选择，请重新输入")
-    
+
     return True
 
 

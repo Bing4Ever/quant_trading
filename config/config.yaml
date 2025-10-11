@@ -8,7 +8,7 @@ market_data:
   
   # Data storage
   data_directory: "./data/"
-  database_url: "sqlite:///market_data.db"
+  database_url: "sqlite:///data/market_data.db"
   
   # Default symbols to track
   default_symbols:
