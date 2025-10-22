@@ -13,8 +13,9 @@ import yfinance as yf
 PROJECT_ROOT = Path(__file__).parent.parent  # 向上一级到项目根目录
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# pylint: disable=wrong-import-position,import-error
 from data import DataFetcher
-from risk_management.risk_manager import RiskManager
+from risk_management.trading_risk_manager import RiskManager
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 
 # 设置日志
@@ -29,14 +30,14 @@ logger = logging.getLogger("QuickTrading")
 class QuickTradingEngine:
     """
     快速交易引擎 - 用于测试和演示
-    
+
     提供简化的交易逻辑，适合快速测试策略和系统功能
     """
 
     def __init__(self, initial_capital: float = 100000) -> None:
         """
         初始化快速交易引擎
-        
+
         Args:
             initial_capital (float): 初始资金，默认100,000
         """
@@ -63,10 +64,10 @@ class QuickTradingEngine:
     def get_price(self, symbol: str) -> float:
         """
         获取实时价格
-        
+
         Args:
             symbol (str): 股票代码
-            
+
         Returns:
             float: 股票价格，获取失败返回0.0
         """
@@ -82,10 +83,10 @@ class QuickTradingEngine:
     def analyze_symbol(self, symbol: str) -> dict:
         """
         分析单个股票
-        
+
         Args:
             symbol (str): 股票代码
-            
+
         Returns:
             dict: 包含分析结果的字典，失败时返回空字典
         """
@@ -125,13 +126,13 @@ class QuickTradingEngine:
     ) -> bool:
         """
         模拟交易
-        
+
         Args:
             symbol (str): 股票代码
             action (str): 交易动作 ('BUY' 或 'SELL')
             price (float): 交易价格
             quantity (int): 交易数量
-            
+
         Returns:
             bool: 交易是否成功
         """
@@ -169,7 +170,7 @@ class QuickTradingEngine:
     def _check_stop_conditions(self) -> None:
         """检查止损止盈条件"""
         positions = self.risk_manager.get_all_positions()
-        for symbol in positions:
+        for symbol in positions.items():
             current_price = self.get_price(symbol)
             if current_price > 0:
                 quantity = positions[symbol]["quantity"]

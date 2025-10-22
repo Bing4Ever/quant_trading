@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""风险管理测试脚本 - 验证止损、止盈、仓位管理等功能"""
+"""Risk Management System Test Suite - Testing VaR, position limits, and risk monitoring"""
 
 import sys
+import time
+import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
+from datetime import datetime, timedelta
+import pandas as pd
+import numpy as np
 
-# 添加项目根目录到路径
+# Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from risk_management.risk_manager import RiskManager
+from risk_management.trading_risk_manager import RiskManager
 import logging
 
 # 设置日志

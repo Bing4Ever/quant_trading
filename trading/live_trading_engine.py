@@ -249,7 +249,7 @@ class LiveTradingEngine:
             results = engine.run_backtest(self.strategy, data)
 
             # 生成报告
-            returns = pd.Series(engine.returns)
+            returns = pd.Series(engine.daily_returns)
             analyzer = PerformanceAnalyzer(returns)
             report = analyzer.generate_report()
 

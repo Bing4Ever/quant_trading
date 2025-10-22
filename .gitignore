@@ -109,6 +109,11 @@ data/*.h5
 logs/
 results/
 backtest_results/
+test_reports/
+reports/automated/
+reports/daily/
+reports/weekly/
+reports/monthly/
 
 # IDE
 .vscode/

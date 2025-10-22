@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from config import config
 from data import DataFetcher
-from risk_management.risk_manager import RiskManager
+from risk_management.trading_risk_manager import RiskManager
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 
 
