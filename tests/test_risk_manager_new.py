@@ -15,9 +15,9 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from risk_management.risk_manager import RiskManager, RiskMonitor, RiskCalculator
-from utils.logger import TradingLogger
-from utils.notification import NotificationManager
+from src.tradingagent.modules.risk_management.risk_manager import RiskManager, RiskMonitor, RiskCalculator
+from src.common.logger import TradingLogger
+from src.common.notification import NotificationManager
 
 
 # Mock NotificationManager for testing

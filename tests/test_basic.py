@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from data import DataFetcher
-from strategies import BaseStrategy, MeanReversionStrategy, MovingAverageStrategy
-from backtesting import BacktestEngine
+from src.tradingagent.modules.data_provider import DataFetcher
+from src.tradingagent.modules.strategies import BaseStrategy, MeanReversionStrategy, MovingAverageStrategy
+from src.tradingagent import BacktestEngine
 from config import config
 
 # Add project root to path

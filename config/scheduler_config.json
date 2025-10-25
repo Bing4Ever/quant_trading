@@ -1,0 +1,68 @@
+{
+  "scheduled_tasks": [
+    {
+      "task_id": "task_20251022_225832",
+      "name": "TSLA",
+      "frequency": "daily",
+      "symbols": [
+        "TSLA"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "status": "pending",
+      "results": null
+    },
+    {
+      "task_id": "task_20251022_225834",
+      "name": "TSLA",
+      "frequency": "daily",
+      "symbols": [
+        "TSLA"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "status": "pending",
+      "results": null
+    },
+    {
+      "task_id": "task_20251022_225839",
+      "name": "TSLA",
+      "frequency": "daily",
+      "symbols": [
+        "TSLA"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": "2025-10-22T23:08:53.974610",
+      "next_run": null,
+      "status": "completed",
+      "results": {}
+    },
+    {
+      "task_id": "test_serialize",
+      "name": "序列化测试任务",
+      "frequency": "15min",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "status": "pending",
+      "results": null
+    }
+  ]
+}

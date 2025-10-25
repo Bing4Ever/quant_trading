@@ -62,17 +62,17 @@ def handle_choice(choice: str) -> bool:
     if choice == "1":
         print("\n启动快速交易引擎...")
         # pylint: disable=import-outside-toplevel
-        from trading.quick_trading_engine import main as quick_main
+        from src.tradingservice.services.engines.quick_trading_engine import main as quick_main
         quick_main()
     elif choice == "2":
         print("\n启动实时交易引擎...")
         # pylint: disable=import-outside-toplevel
-        from trading.live_trading_engine import main as live_main
+        from src.tradingservice.services.engines.live_trading_engine import main as live_main
         live_main()
     elif choice == "3":
         print("\n启动高级交易引擎...")
         # pylint: disable=import-outside-toplevel
-        from trading.advanced_trading_engine import main as advanced_main
+        from src.tradingservice.services.engines.advanced_trading_engine import main as advanced_main
         advanced_main()
     elif choice == "4":
         print("\n运行测试套件...")

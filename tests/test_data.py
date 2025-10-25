@@ -6,11 +6,12 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from data import DataFetcher
 
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.tradingagent.modules.data_provider import DataFetcher
 
 
 # 设置日志

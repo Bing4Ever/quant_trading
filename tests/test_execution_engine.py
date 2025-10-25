@@ -9,10 +9,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-from trading.execution_engine import (
-    TradeExecutionEngine, TradingSignal, TradingMode,
-    create_broker
+from src.tradingagent import (
+    TradingSignal, TradingMode, SimulationBroker, LiveBroker
 )
+from src.tradingagent.modules.execution import OrderExecutor
 
 
 def test_simulation_trading():

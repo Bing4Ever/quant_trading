@@ -11,10 +11,10 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from strategies.mean_reversion_strategy import MeanReversionStrategy
-from strategies.moving_average_strategy import MovingAverageStrategy
-from data import DataFetcher
-from backtesting import BacktestEngine
+from src.tradingagent.modules.strategies.mean_reversion_strategy import MeanReversionStrategy
+from src.tradingagent.modules.strategies.moving_average_strategy import MovingAverageStrategy
+from src.tradingagent.modules.data_provider import DataFetcher
+from src.tradingagent import BacktestEngine
 import logging
 
 # 设置日志

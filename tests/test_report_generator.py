@@ -6,8 +6,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-from automation.report_generator import ReportGenerator, AutoReportScheduler
-from utils.logger import TradingLogger
+from src.tradingservice.services.automation.report_generator import ReportGenerator, AutoReportScheduler
+from src.common.logger import TradingLogger
 
 
 def test_report_generator():

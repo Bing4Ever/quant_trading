@@ -15,7 +15,7 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from risk_management.risk_manager import RiskManager, RiskMonitor, PositionLimits, RiskLevel, RiskType, RiskAlert
+from src.tradingagent.modules.risk_management.risk_manager import RiskManager, RiskMonitor, PositionLimits, RiskLevel, RiskType, RiskAlert
 
 
 class TestPositionLimits(unittest.TestCase):

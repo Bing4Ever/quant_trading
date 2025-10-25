@@ -108,12 +108,7 @@ data/*.h5
 *.db
 logs/
 results/
-backtest_results/
-test_reports/
-reports/automated/
-reports/daily/
-reports/weekly/
-reports/monthly/
+reports/
 
 # IDE
 .vscode/

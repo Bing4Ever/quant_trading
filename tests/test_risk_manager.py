@@ -15,7 +15,7 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from risk_management.trading_risk_manager import RiskManager
+from src.tradingagent.modules.risk_management.trading_risk_manager import RiskManager
 import logging
 
 # 设置日志

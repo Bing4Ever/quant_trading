@@ -16,15 +16,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # 导入自定义模块
 try:
-    from trading.live_trading_engine import LiveTradingEngine
-    from strategies.mean_reversion_strategy import MeanReversionStrategy
-    from strategies.multi_strategy_runner import MultiStrategyRunner
-    from visualization.report_generator import BacktestReportGenerator
-    from visualization.chart_generator import InteractiveChartGenerator
-    from data.database import BacktestDatabase
-    from optimization.parameter_optimizer import ParameterOptimizer
-    from optimization.optimization_visualizer import OptimizationVisualizer
-    from automation.streamlit_automation import automation_management_page
+    from src.tradingservice.services.engines import LiveTradingEngine
+    from src.tradingagent.modules.strategies import MeanReversionStrategy, MultiStrategyRunner
+    from src.tradingservice.services.presentation import BacktestReportGenerator, InteractiveChartGenerator
+    from src.tradingservice import get_backtest_repository, BacktestAnalytics
+    from src.tradingservice.services.optimization import ParameterOptimizer
+    from src.tradingservice.services.optimization import OptimizationVisualizer
+    from src.tradingservice.services.automation.streamlit_automation import automation_management_page
 except ImportError as e:
     st.error(f"模块导入失败: {e}")
     
@@ -38,7 +36,7 @@ def automation_management_page():
     with sub_tab1:
         # 实时监控页面
         try:
-            from automation.streamlit_realtime import real_time_monitor_page
+            from src.tradingservice.services.automation.streamlit_realtime import real_time_monitor_page
             real_time_monitor_page()
         except ImportError as e:
             st.error(f"实时监控模块加载失败: {e}")
@@ -47,7 +45,7 @@ def automation_management_page():
     with sub_tab2:
         # 自动化调度页面
         try:
-            from automation.streamlit_automation import automation_scheduler_page
+            from src.tradingservice.services.automation.streamlit_automation import automation_scheduler_page
             automation_scheduler_page()
         except ImportError as e:
             st.error(f"自动化调度模块加载失败: {e}")
@@ -131,7 +129,8 @@ def automation_task_management_page():
 # 初始化数据库
 @st.cache_resource
 def init_database():
-    return BacktestDatabase()
+    """初始化回测数据仓库"""
+    return get_backtest_repository()
 
 
 def stock_selector():

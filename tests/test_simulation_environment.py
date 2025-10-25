@@ -16,7 +16,7 @@ from datetime import datetime
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from simulation.trading_environment import SimulationEnvironment, SimulationConfig, SimulationMode
+from src.tradingservice.services.simulation.trading_environment import SimulationEnvironment, SimulationConfig, SimulationMode
 
 
 class TestSimulationConfig(unittest.TestCase):

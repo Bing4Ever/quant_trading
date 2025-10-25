@@ -21,7 +21,7 @@ __author__ = "Quantitative Trading Team"
 # Import main modules for easy access
 from . import data
 from . import strategies
-from . import backtesting
+## backtesting.py 已弃用，相关兼容层已移除
 from . import risk_management
 from . import portfolio
 from . import utils

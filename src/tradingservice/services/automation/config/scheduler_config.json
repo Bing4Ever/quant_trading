@@ -1,0 +1,44 @@
+{
+  "scheduled_tasks": [
+    {
+      "task_id": "daily_analysis",
+      "name": "每日市场分析",
+      "frequency": "daily",
+      "symbols": [
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "TSLA",
+        "NVDA"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": "2025-10-22T00:12:06.876945",
+      "next_run": null,
+      "status": "completed",
+      "results": {}
+    },
+    {
+      "task_id": "weekly_report",
+      "name": "周度投资报告",
+      "frequency": "weekly",
+      "symbols": [
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "TSLA",
+        "NVDA"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "status": "pending",
+      "results": null
+    }
+  ]
+}

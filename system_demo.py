@@ -45,7 +45,7 @@ print(f"\n📋 使用说明:")
 print("   📊 Jupyter: 运行notebook中的分析单元格")
 print("   🌐 Web界面: 运行 'streamlit run streamlit_app.py'")
 print("   📁 报告: 查看 reports/ 目录下生成的报告")
-print("   💾 数据库: db/backtest_results.db 存储历史数据")
+print("   💾 数据库: src/tradingservice/dataaccess/db/business/business.db 存储历史数据")
 
 print(f"\n✨ Tesla回测样例结果:")
 sample_results = {
