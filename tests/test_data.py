@@ -7,6 +7,9 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
+import pandas as pd
+
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -19,6 +22,26 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("DataTest")
+
+
+@pytest.fixture
+def data_fetcher() -> DataFetcher:
+    """Provide a DataFetcher instance for tests."""
+    return DataFetcher()
+
+
+@pytest.fixture
+def sample_data(data_fetcher: DataFetcher):
+    """Fetch sample historical data for reuse."""
+    symbol = "AAPL"
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    data = data_fetcher.fetch_stock_data(
+        symbol,
+        start_date.strftime("%Y-%m-%d"),
+        end_date.strftime("%Y-%m-%d"),
+    )
+    return data
 
 
 def test_data_fetcher_initialization():
@@ -41,52 +64,32 @@ def test_data_fetcher_initialization():
         return None
 
 
-def test_stock_data_fetching(data_fetcher):
+def test_stock_data_fetching(sample_data):
     """
-    测试股票数据获取
+    ????????
 
     Args:
-        data_fetcher: 数据获取器实例
+        sample_data: ???????
 
     Returns:
-        DataFrame: 获取的股票数据，失败时返回None
+        DataFrame: ???????,?????None
     """
     print("\n" + "=" * 50)
-    print("测试股票数据获取")
+    print("????????")
     print("=" * 50)
 
-    if not data_fetcher:
-        print("❌ 无法测试，数据获取器未初始化")
-        return None
+    if sample_data is None or sample_data.empty:
+        pytest.skip("??????????,?????")
 
-    # 测试参数
-    symbol = "AAPL"
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)
+    print(f"??????: {len(sample_data)}")
+    print(f"??: {sample_data.columns.tolist()}")
+    print("\n??????:")
+    print(sample_data.head(3))
+    print("\n????:")
+    print(sample_data.describe())
 
-    start_str = start_date.strftime("%Y-%m-%d")
-    end_str = end_date.strftime("%Y-%m-%d")
-
-    try:
-        print(f"获取 {symbol} 从 {start_str} 到 {end_str} 的数据...")
-        data = data_fetcher.fetch_stock_data(symbol, start_str, end_str)
-
-        if not data.empty:
-            print(f"✅ 成功获取 {len(data)} 天的数据")
-            print(f"数据列: {data.columns.tolist()}")
-            print("\n数据样本:")
-            print(data.head(3))
-            print("\n数据统计:")
-            print(data.describe())
-            return data
-        else:
-            print("❌ 获取到空数据")
-            return None
-
-    except (ValueError, KeyError, AttributeError, TypeError) as e:
-        print(f"❌ 数据获取失败: {e}")
-        return None
-
+    assert not sample_data.empty
+    return sample_data
 
 def test_multiple_symbols(data_fetcher):
     """
@@ -135,8 +138,9 @@ def test_multiple_symbols(data_fetcher):
 
 def _check_required_columns(data):
     """检查必需列"""
-    required_columns = ["Open", "High", "Low", "Close", "Volume"]
-    missing_columns = [col for col in required_columns if col not in data.columns]
+    required_columns = ["open", "high", "low", "close", "volume"]
+    columns_lower = [col.lower() for col in data.columns]
+    missing_columns = [col for col in required_columns if col not in columns_lower]
 
     if missing_columns:
         print(f"❌ 缺少必需列: {missing_columns}")
@@ -162,8 +166,11 @@ def _check_data_completeness(data):
 
 def _check_price_logic(data):
     """检查价格逻辑"""
-    if "High" in data.columns and "Low" in data.columns:
-        invalid_high_low = (data["High"] < data["Low"]).sum()
+    columns = {col.lower(): col for col in data.columns}
+    if "high" in columns and "low" in columns:
+        high_col = columns["high"]
+        low_col = columns["low"]
+        invalid_high_low = (data[high_col] < data[low_col]).sum()
         if invalid_high_low > 0:
             print(f"❌ {invalid_high_low} 天的最高价低于最低价")
             return False
@@ -175,8 +182,10 @@ def _check_price_logic(data):
 
 def _check_price_ranges(data):
     """检查价格范围"""
-    if "Close" in data.columns:
-        close_prices = data["Close"]
+    columns = {col.lower(): col for col in data.columns}
+    if "close" in columns:
+        close_col = columns["close"]
+        close_prices = data[close_col]
         if (close_prices <= 0).any():
             print("❌ 发现非正价格")
             return False
@@ -194,7 +203,7 @@ def _check_price_ranges(data):
     return True
 
 
-def test_data_quality(data):
+def test_data_quality(sample_data):
     """
     测试数据质量
 
@@ -205,15 +214,15 @@ def test_data_quality(data):
     print("测试数据质量")
     print("=" * 50)
 
-    if data is None or data.empty:
+    if sample_data is None or sample_data.empty:
         print("❌ 无数据可供质量检查")
         return
 
     # 分别检查各个方面
-    _check_required_columns(data)
-    _check_data_completeness(data)
-    _check_price_logic(data)
-    _check_price_ranges(data)
+    _check_required_columns(sample_data)
+    _check_data_completeness(sample_data)
+    _check_price_logic(sample_data)
+    _check_price_ranges(sample_data)
 
 
 def test_data_caching():

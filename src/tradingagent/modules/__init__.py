@@ -15,7 +15,7 @@ Modules Package - 功能模块层
 # 基础模块
 from .execution import OrderExecutor
 from .signal import SignalGenerator
-from .data_provider import DataFetcher, DataManager
+from .data_provider import DataFetcher, DataManager, DataProvider, RealTimeDataProvider
 
 # 风险管理模块（从 risk_management 导入）
 from .risk_management import RiskController, RiskLimits
@@ -30,6 +30,8 @@ __all__ = [
     'SignalGenerator',
     'DataFetcher',
     'DataManager',
+    'DataProvider',
+    'RealTimeDataProvider',
     # 风险控制
     'RiskController',
     'RiskLimits',

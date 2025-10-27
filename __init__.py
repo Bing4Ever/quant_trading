@@ -17,11 +17,3 @@ Modules:
 
 __version__ = "1.0.0"
 __author__ = "Quantitative Trading Team"
-
-# Import main modules for easy access
-from . import data
-from . import strategies
-## backtesting.py 已弃用，相关兼容层已移除
-from . import risk_management
-from . import portfolio
-from . import utils

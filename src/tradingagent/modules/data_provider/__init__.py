@@ -1,17 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Data Provider Module - 数据提供模块
+Data Provider Module - 行情数据统一入口
 
-纯粹的市场数据获取和管理接口，不包含业务数据存储。
-
-组织结构：
-- fetcher.py: DataFetcher - 从各种数据源获取市场数据
-- manager.py: DataManager - 数据管理和缓存
+子模块：
+- data_fetcher.py: DataFetcher - 连接外部数据源抓取行情
+- data_manager.py: DataManager - 本地缓存/数据库管理
+- data_provider.py: DataProvider / RealTimeDataProvider - 对外暴露的统一接口
 """
 
-from .fetcher import DataFetcher
-from .manager import DataManager
+from .data_fetcher import DataFetcher
+from .data_manager import DataManager
+from .data_provider import DataProvider, RealTimeDataProvider
 
 __all__ = [
     'DataFetcher',
     'DataManager',
+    'DataProvider',
+    'RealTimeDataProvider',
 ]

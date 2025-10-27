@@ -17,22 +17,24 @@ import schedule
 from src.common.logger import setup_logger
 from src.common.notification import NotificationManager
 from src.tradingagent.modules.strategies import MultiStrategyRunner
+
 # 添加项目根路径到 Python 路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 class ScheduleFrequency(Enum):
     """调度频率枚举"""
 
-    MINUTE = "minute"           # 每分钟
-    EVERY_5_MINUTES = "5min"    # 每5分钟
+    MINUTE = "minute"  # 每分钟
+    EVERY_5_MINUTES = "5min"  # 每5分钟
     EVERY_15_MINUTES = "15min"  # 每15分钟
     EVERY_30_MINUTES = "30min"  # 每30分钟
-    HOUR = "hour"               # 每小时
-    EVERY_2_HOURS = "2hours"    # 每2小时
-    EVERY_4_HOURS = "4hours"    # 每4小时
-    DAILY = "daily"             # 每日
-    WEEKLY = "weekly"           # 每周
-    MONTHLY = "monthly"         # 每月
+    HOUR = "hour"  # 每小时
+    EVERY_2_HOURS = "2hours"  # 每2小时
+    EVERY_4_HOURS = "4hours"  # 每4小时
+    DAILY = "daily"  # 每日
+    WEEKLY = "weekly"  # 每周
+    MONTHLY = "monthly"  # 每月
 
 
 class TaskStatus(Enum):
@@ -100,17 +102,31 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                 for task_data in config.get("scheduled_tasks", []):
                     try:
                         # 转换字符串为枚举类型
-                        if "frequency" in task_data and isinstance(task_data["frequency"], str):
-                            task_data["frequency"] = ScheduleFrequency(task_data["frequency"])
-                        if "status" in task_data and isinstance(task_data["status"], str):
+                        if "frequency" in task_data and isinstance(
+                            task_data["frequency"], str
+                        ):
+                            task_data["frequency"] = ScheduleFrequency(
+                                task_data["frequency"]
+                            )
+                        if "status" in task_data and isinstance(
+                            task_data["status"], str
+                        ):
                             task_data["status"] = TaskStatus(task_data["status"])
-                        
+
                         # 转换日期时间字符串
-                        if "last_run" in task_data and isinstance(task_data["last_run"], str):
-                            task_data["last_run"] = datetime.fromisoformat(task_data["last_run"])
-                        if "next_run" in task_data and isinstance(task_data["next_run"], str):
-                            task_data["next_run"] = datetime.fromisoformat(task_data["next_run"])
-                        
+                        if "last_run" in task_data and isinstance(
+                            task_data["last_run"], str
+                        ):
+                            task_data["last_run"] = datetime.fromisoformat(
+                                task_data["last_run"]
+                            )
+                        if "next_run" in task_data and isinstance(
+                            task_data["next_run"], str
+                        ):
+                            task_data["next_run"] = datetime.fromisoformat(
+                                task_data["next_run"]
+                            )
+
                         task = ScheduledTask(**task_data)
                         self.scheduled_tasks[task.task_id] = task
                     except (TypeError, ValueError, KeyError) as e:
@@ -169,7 +185,11 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                     {
                         "task_id": task.task_id,
                         "name": task.name,
-                        "frequency": task.frequency.value if isinstance(task.frequency, ScheduleFrequency) else task.frequency,
+                        "frequency": (
+                            task.frequency.value
+                            if isinstance(task.frequency, ScheduleFrequency)
+                            else task.frequency
+                        ),
                         "symbols": task.symbols,
                         "strategies": task.strategies,
                         "enabled": task.enabled,
@@ -179,7 +199,11 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                         "next_run": (
                             task.next_run.isoformat() if task.next_run else None
                         ),
-                        "status": task.status.value if isinstance(task.status, TaskStatus) else task.status,
+                        "status": (
+                            task.status.value
+                            if isinstance(task.status, TaskStatus)
+                            else task.status
+                        ),
                         "results": task.results,
                     }
                     for task in self.scheduled_tasks.values()
@@ -261,10 +285,10 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                 self.save_config()
                 self.logger.info("暂停任务: %s", task.name)
                 return True
-            
+
             self.logger.warning("任务不存在: %s", task_id)
             return False
-            
+
         except (KeyError, AttributeError) as e:
             self.logger.error("暂停任务失败: %s", str(e))
             return False
@@ -283,18 +307,18 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
             if task_id in self.scheduled_tasks:
                 task = self.scheduled_tasks[task_id]
                 task.enabled = True
-                
+
                 # 如果调度器正在运行，重新调度该任务
                 if self.is_running:
                     self._schedule_task(task)
-                
+
                 self.save_config()
                 self.logger.info("恢复任务: %s", task.name)
                 return True
-            
+
             self.logger.warning("任务不存在: %s", task_id)
             return False
-            
+
         except (KeyError, AttributeError) as e:
             self.logger.error("恢复任务失败: %s", str(e))
             return False
@@ -584,10 +608,16 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
             return None
 
         task = self.scheduled_tasks[task_id]
-        
+
         # 处理 frequency 可能是字符串或枚举的情况
-        frequency_value = task.frequency.value if isinstance(task.frequency, ScheduleFrequency) else task.frequency
-        status_value = task.status.value if isinstance(task.status, TaskStatus) else task.status
+        frequency_value = (
+            task.frequency.value
+            if isinstance(task.frequency, ScheduleFrequency)
+            else task.frequency
+        )
+        status_value = (
+            task.status.value if isinstance(task.status, TaskStatus) else task.status
+        )
 
         return {
             "task_id": task.task_id,

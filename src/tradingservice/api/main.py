@@ -26,7 +26,7 @@ from .middleware import (
     LoggingMiddleware,
     http_exception_handler,
     validation_exception_handler,
-    general_exception_handler
+    general_exception_handler,
 )
 from .routes import tasks, scheduler, strategies
 from .dependencies import get_scheduler
@@ -36,11 +36,11 @@ from .models.common_models import HealthCheckResponse
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('logs/api.log', encoding='utf-8')
-    ]
+        logging.FileHandler("logs/api.log", encoding="utf-8"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -53,23 +53,23 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info("=" * 60)
-    
+
     # Initialize scheduler
     try:
         scheduler_instance = get_scheduler()
         logger.info(f"✓ Scheduler initialized: {type(scheduler_instance).__name__}")
     except Exception as e:
         logger.error(f"✗ Failed to initialize scheduler: {e}")
-    
+
     # Create necessary directories
     Path(settings.CONFIG_DIR).mkdir(exist_ok=True)
     Path(settings.LOGS_DIR).mkdir(exist_ok=True)
     logger.info("✓ Data directories verified")
-    
+
     logger.info(f"✓ Server ready on {settings.HOST}:{settings.PORT}")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down...")
     try:
@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
             logger.info("✓ Scheduler stopped")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
-    
+
     logger.info("Shutdown complete")
 
 
@@ -109,7 +109,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -145,7 +145,7 @@ app.include_router(strategies.router)
     response_model=HealthCheckResponse,
     tags=["System"],
     summary="Health check",
-    description="Check the health status of the API and its dependencies."
+    description="Check the health status of the API and its dependencies.",
 )
 async def health_check() -> HealthCheckResponse:
     """Check API health status."""
@@ -154,13 +154,13 @@ async def health_check() -> HealthCheckResponse:
         scheduler_status = "healthy" if scheduler_instance else "unhealthy"
     except Exception:
         scheduler_status = "unhealthy"
-    
+
     # Determine overall status
     if scheduler_status == "healthy":
         status = "healthy"
     else:
         status = "degraded"
-    
+
     return HealthCheckResponse(
         status=status,
         version=settings.APP_VERSION,
@@ -168,7 +168,7 @@ async def health_check() -> HealthCheckResponse:
         dependencies={
             "scheduler": scheduler_status,
         },
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now().isoformat(),
     )
 
 
@@ -177,7 +177,7 @@ async def health_check() -> HealthCheckResponse:
     "/",
     tags=["System"],
     summary="API root",
-    description="Get basic API information and available endpoints."
+    description="Get basic API information and available endpoints.",
 )
 async def root():
     """API root endpoint."""
@@ -190,20 +190,20 @@ async def root():
         "endpoints": {
             "tasks": "/api/tasks",
             "scheduler": "/api/scheduler",
-            "strategies": "/api/strategies"
-        }
+            "strategies": "/api/strategies",
+        },
     }
 
 
 # Run with uvicorn
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "src.tradingservice.api.main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
         workers=settings.WORKERS,
-        log_level="info"
+        log_level="info",
     )

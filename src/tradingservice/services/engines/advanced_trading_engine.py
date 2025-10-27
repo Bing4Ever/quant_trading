@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from config import config
-from src.tradingagent.modules import DataManager
+from src.tradingagent.modules.data_provider import DataProvider
 from src.tradingagent.modules.risk_management import TradingRiskManager as RiskManager
 from src.tradingagent.modules.strategies import MeanReversionStrategy
 
@@ -28,7 +28,7 @@ class AdvancedTradingEngine:
         self.paper_trading = config.get_env("PAPER_TRADING", True)
 
         # 初始化组件
-        self.data_provider = DataManager()
+        self.data_provider = DataProvider()
         self.strategy = MeanReversionStrategy()
         self.risk_manager = RiskManager(
             max_position_size=0.2,  # 单只股票最大仓位20%
@@ -93,7 +93,7 @@ class AdvancedTradingEngine:
                     datetime.now().strftime("%Y-%m-%d"),
                 )
                 if data is not None and not data.empty:
-                    prices[symbol] = float(data["Close"].iloc[-1])
+                    prices[symbol] = float(data["close"].iloc[-1])
                 else:
                     self.logger.warning("无法获取 %s 的价格数据", symbol)
             except (ValueError, KeyError, TypeError) as e:
@@ -124,7 +124,7 @@ class AdvancedTradingEngine:
                     latest_signal = strategy_signals.iloc[-1]
                     signals[symbol] = {
                         "action": latest_signal["Signal"],
-                        "price": float(data["Close"].iloc[-1]),
+                        "price": float(data["close"].iloc[-1]),
                         "confidence": abs(latest_signal.get("Confidence", 0.5)),
                     }
 
