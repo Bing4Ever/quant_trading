@@ -5,7 +5,9 @@ Dependency injection providers for FastAPI.
 """
 
 from functools import lru_cache
-from src.tradingservice.services.automation import AutoTradingScheduler as AutomationScheduler
+from src.tradingservice.services.automation import (
+    AutoTradingScheduler as AutomationScheduler,
+)
 
 
 # Global scheduler instance
@@ -24,4 +26,5 @@ def get_scheduler() -> AutomationScheduler:
 def get_config():
     """Get application configuration."""
     from api.config import settings
+
     return settings
