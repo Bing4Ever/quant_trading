@@ -73,14 +73,18 @@ class SignalMonitor:
                 if historical.empty:
                     continue
                 result = strategy.generate_signals(historical.tail(100))
-                if result.empty or "signal" not in result.columns:
+                if result is None or result.empty or "signal" not in result.columns:
                     continue
-                latest_signal = result["signal"].iloc[-1]
+                latest_row = result.iloc[-1]
+                latest_signal = latest_row.get("signal")
+                if pd.isna(latest_signal):
+                    continue
                 if latest_signal == 0:
                     continue
                 direction = "BUY" if latest_signal > 0 else "SELL"
                 strength = min(1.0, abs(float(latest_signal)))
-                reason_text = f"{strategy_name}实时信号"
+                strategy_label = getattr(strategy, "name", name)
+                reason_text = f"{strategy_label}实时信号"
                 metadata = {"source": "strategy", "reason": reason_text}
                 target_price = latest_row.get("target_price")
                 if pd.notna(target_price):
