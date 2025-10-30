@@ -1,4 +1,4 @@
-# 📂 src/ 目录说明
+﻿# 📂 src/ 目录说明
 
 ## 🎯 目录结构
 
@@ -27,7 +27,8 @@ src/
 **核心类**:
 - `BrokerInterface`: 抽象基类，定义统一接口
 - `SimulationBroker`: 模拟交易实现（用于回测和测试）
-- `LiveBroker`: 实盘交易实现（待完善）
+- `AlpacaBroker`: Alpaca 接入实现（需配置 API）
+- `BrokerFactory`: 券商工厂（按标识创建券商实例）
 - `Order`: 订单数据类
 - `Position`: 持仓数据类
 
@@ -75,7 +76,7 @@ src/
 **职责**: 从各种数据源获取市场数据
 
 **核心类**:
-- `DataProvider`: 数据提供器基类
+- `DataProvider`: 数据提供器基类 (支持 `yfinance` / `alpaca`，后者需要在 `.env` 中配置 `ALPACA_API_KEY`、`ALPACA_API_SECRET`)
 - `RealTimeDataProvider`: 实时数据提供器
 
 **主要功能**:

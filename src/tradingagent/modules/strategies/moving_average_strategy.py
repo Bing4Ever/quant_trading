@@ -1,182 +1,183 @@
 """
-Moving Average Crossover Strategy.
+均线交叉策略。
 
-A classic trend-following strategy that generates buy signals when a short-term
-moving average crosses above a long-term moving average, and sell signals when
-the opposite occurs.
+经典趋势跟随策略：短期均线向上突破长期均线时看多，反向穿越时退出或反向。
 """
 
-from typing import Dict, Any
-import pandas as pd
+from __future__ import annotations
+
+from typing import Any, Dict, Tuple
+
 import numpy as np
+import pandas as pd
+
 from .base_strategy import BaseStrategy, SignalType
 
 
 class MovingAverageStrategy(BaseStrategy):
-    """
-    Moving Average Crossover Strategy.
-
-    Parameters:
-    -----------
-    short_window : int
-        Period for short-term moving average (default: 20)
-    long_window : int
-        Period for long-term moving average (default: 50)
-    ma_type : str
-        Type of moving average ('sma' or 'ema', default: 'sma')
-    """
+    """基于均线交叉的趋势跟随策略。"""
 
     def __init__(
-        self, short_window: int = 20, long_window: int = 50, ma_type: str = "sma"
+        self,
+        short_window: int = 20,
+        long_window: int = 50,
+        ma_type: str = "sma",
     ):
         """
-        Initialize Moving Average Strategy.
+        初始化策略参数。
 
-        Args:
-            short_window: Short-term moving average period
-            long_window: Long-term moving average period
-            ma_type: Type of moving average ('sma' or 'ema')
+        参数：
+            short_window: 短周期均线长度
+            long_window: 长周期均线长度
+            ma_type: 均线类型，支持 `sma` 或 `ema`
         """
         super().__init__("Moving Average Crossover")
-
         self.set_parameters(
             short_window=short_window, long_window=long_window, ma_type=ma_type
         )
 
+    # ------------------------------------------------------------------ #
+    # 核心信号逻辑
+    # ------------------------------------------------------------------ #
     def generate_signals(self, market_data: pd.DataFrame) -> pd.DataFrame:
         """
-        Generate trading signals based on moving average crossover.
+        根据均线交叉生成买卖信号。
 
-        The strategy generates:
-        - BUY signal when short MA crosses above long MA
-        - SELL signal when short MA crosses below long MA
-        - HOLD signal otherwise
+        策略规则：
+            - 短均线向上穿越长均线：买入信号；
+            - 短均线向下穿越长均线：卖出/平仓信号；
+            - 其他情况保持现有仓位。
 
-        Args:
-            market_data: Market data DataFrame with OHLCV columns
+        参数：
+            market_data: 含 OHLCV 字段的行情数据表
 
-        Returns:
-            DataFrame with trading signals and moving averages
+        返回：
+            包含信号、仓位及辅助指标的 DataFrame
         """
         if not self.validate_data(market_data):
-            raise ValueError("Invalid data format")
+            raise ValueError("行情数据缺失必需的 OHLCV 字段。")
+
         df = market_data.copy()
+        df.columns = [col.lower() for col in df.columns]
+
         short_window = self.get_parameter("short_window", 20)
         long_window = self.get_parameter("long_window", 50)
-        ma_type = self.get_parameter("ma_type", "sma")
+        ma_type = self.get_parameter("ma_type", "sma").lower()
 
-        # Calculate moving averages
+        if ma_type not in {"sma", "ema"}:
+            raise ValueError(f"不支持的均线类型: {ma_type}")
+
         if ma_type == "sma":
             df["short_ma"] = df["close"].rolling(window=short_window).mean()
             df["long_ma"] = df["close"].rolling(window=long_window).mean()
-        elif ma_type == "ema":
-            df["short_ma"] = df["close"].ewm(span=short_window).mean()
-            df["long_ma"] = df["close"].ewm(span=long_window).mean()
         else:
-            raise ValueError(f"Invalid ma_type: {ma_type}")
+            df["short_ma"] = df["close"].ewm(span=short_window, adjust=False).mean()
+            df["long_ma"] = df["close"].ewm(span=long_window, adjust=False).mean()
 
-        # Generate signals
-        df["signal"] = 0
+        df["signal"] = SignalType.HOLD.value
         df["position"] = 0
 
-        # Create crossover signals
-        df["crossover"] = np.where(
+        crossover = (
             (df["short_ma"] > df["long_ma"])
-            & (df["short_ma"].shift(1) <= df["long_ma"].shift(1)),
-            1,
-            0,
+            & (df["short_ma"].shift(1) <= df["long_ma"].shift(1))
         )
-
-        df["crossunder"] = np.where(
+        crossunder = (
             (df["short_ma"] < df["long_ma"])
-            & (df["short_ma"].shift(1) >= df["long_ma"].shift(1)),
-            1,
-            0,
+            & (df["short_ma"].shift(1) >= df["long_ma"].shift(1))
         )
 
-        # Set signals
-        df.loc[df["crossover"] == 1, "signal"] = SignalType.BUY.value
-        df.loc[df["crossunder"] == 1, "signal"] = SignalType.SELL.value
+        df.loc[crossover, "signal"] = SignalType.BUY.value
+        df.loc[crossunder, "signal"] = SignalType.SELL.value
 
-        # Calculate position (1 for long, -1 for short, 0 for flat)
         current_position = 0
         positions = []
-
-        for _, row in df.iterrows():
-            if row["signal"] == SignalType.BUY.value:
+        for signal in df["signal"]:
+            if signal == SignalType.BUY.value:
                 current_position = 1
-            elif row["signal"] == SignalType.SELL.value:
-                current_position = 0  # or -1 for short selling
-
+            elif signal == SignalType.SELL.value:
+                current_position = 0
             positions.append(current_position)
-
         df["position"] = positions
 
-        # Add additional metrics
         df["ma_spread"] = df["short_ma"] - df["long_ma"]
-        df["ma_spread_pct"] = (df["short_ma"] - df["long_ma"]) / df["long_ma"] * 100
+        df["ma_spread_pct"] = (
+            df["ma_spread"] / df["long_ma"].replace(0, np.nan)
+        ).fillna(0) * 100
 
-        # Store signals for later use
         self.signals = df[
             ["close", "short_ma", "long_ma", "signal", "position", "ma_spread"]
         ].copy()
 
         return df[["signal", "position", "short_ma", "long_ma", "ma_spread"]]
 
+    # ------------------------------------------------------------------ #
+    # 过滤与辅助工具
+    # ------------------------------------------------------------------ #
     def add_trend_filter(
         self, signal_data: pd.DataFrame, trend_window: int = 200
     ) -> pd.DataFrame:
         """
-        Add a trend filter to improve signal quality.
+        添加长周期趋势过滤，避免在弱趋势下频繁交易。
 
-        Only takes long positions when price is above long-term trend.
+        参数：
+            signal_data: 含信号的行情数据
+            trend_window: 趋势均线长度
 
-        Args:
-            signal_data: Market data with signals
-            trend_window: Period for trend filter moving average
-
-        Returns:
-            DataFrame with filtered signals
+        返回：
+            应用趋势过滤后的数据
         """
         df = signal_data.copy()
+        df.columns = [col.lower() for col in df.columns]
 
-        # Calculate trend filter
         df["trend_ma"] = df["close"].rolling(window=trend_window).mean()
         df["trend_filter"] = df["close"] > df["trend_ma"]
 
-        # Apply filter to signals
-        # Only allow buy signals when above trend
         df.loc[
             (df["signal"] == SignalType.BUY.value) & (~df["trend_filter"]), "signal"
-        ] = 0
-
-        # Force sell when trend turns down
+        ] = SignalType.HOLD.value
         df.loc[(df["position"].shift(1) == 1) & (~df["trend_filter"]), "signal"] = (
             SignalType.SELL.value
         )
-
         return df
 
+    def add_volatility_filter(
+        self, signal_data: pd.DataFrame, window: int = 20
+    ) -> pd.DataFrame:
+        """
+        添加波动率过滤，仅在波动率超过均值时执行策略。
+
+        参数：
+            signal_data: 含信号的行情数据
+            window: 波动率均线窗口
+        """
+        df = signal_data.copy()
+        df.columns = [col.lower() for col in df.columns]
+
+        df["returns"] = df["close"].pct_change().fillna(0)
+        df["volatility"] = df["returns"].rolling(window=window).std() * np.sqrt(252)
+        df["volatility_threshold"] = df["volatility"].rolling(window).mean()
+        df["volatility_filter"] = df["volatility"] > df["volatility_threshold"]
+
+        df.loc[~df["volatility_filter"], "signal"] = SignalType.HOLD.value
+        return df
+
+    # ------------------------------------------------------------------ #
+    # 参数优化与描述
+    # ------------------------------------------------------------------ #
     def optimize_parameters(
         self,
         market_data: pd.DataFrame,
-        short_range: tuple = (5, 50),
-        long_range: tuple = (20, 200),
+        short_range: Tuple[int, int] = (5, 50),
+        long_range: Tuple[int, int] = (20, 200),
         step: int = 5,
     ) -> Dict[str, Any]:
         """
-        Optimize strategy parameters using grid search.
+        通过网格搜索寻找最佳短长均线组合。
 
-        Args:
-            market_data: Market data for optimization
-            short_range: Range for short window (min, max)
-            long_range: Range for long window (min, max)
-            step: Step size for parameter search
-
-        Returns:
-            Dictionary with best parameters and performance metrics
+        返回：
+            包含最佳参数及收益表现的字典
         """
-        best_params = {}
+        best_params: Dict[str, Any] = {}
         best_return = -float("inf")
         optimization_results = []
 
@@ -185,34 +186,27 @@ class MovingAverageStrategy(BaseStrategy):
                 if short_window >= long_window:
                     continue
 
-                # Set parameters
                 self.set_parameters(short_window=short_window, long_window=long_window)
-
                 try:
-                    # Run backtest
-                    backtest_results = self.backtest(market_data)
-                    total_return = backtest_results["total_return"]
-
-                    optimization_results.append(
-                        {
-                            "short_window": short_window,
-                            "long_window": long_window,
-                            "total_return": total_return,
-                        }
-                    )
-
-                    if total_return > best_return:
-                        best_return = total_return
-                        best_params = {
-                            "short_window": short_window,
-                            "long_window": long_window,
-                        }
-
-                except (ValueError, KeyError) as e:
-                    print(
-                        f"Error optimizing parameters {short_window}, {long_window}: {e}"
-                    )
+                    result = self.backtest(market_data)
+                except (ValueError, KeyError):
                     continue
+
+                total_return = result.get("total_return", 0.0)
+                optimization_results.append(
+                    {
+                        "short_window": short_window,
+                        "long_window": long_window,
+                        "total_return": total_return,
+                    }
+                )
+
+                if total_return > best_return:
+                    best_return = total_return
+                    best_params = {
+                        "short_window": short_window,
+                        "long_window": long_window,
+                    }
 
         return {
             "best_parameters": best_params,
@@ -221,50 +215,38 @@ class MovingAverageStrategy(BaseStrategy):
         }
 
     def get_strategy_description(self) -> str:
-        """Get strategy description."""
+        """返回中文描述，便于展示或调试。"""
         short_window = self.get_parameter("short_window", 20)
         long_window = self.get_parameter("long_window", 50)
-        ma_type = self.get_parameter("ma_type", "sma")
+        ma_type = self.get_parameter("ma_type", "sma").upper()
 
-        return f"""
-        Moving Average Crossover Strategy
-        ================================
-        
-        Type: Trend Following
-        Short MA: {short_window} periods ({ma_type.upper()})
-        Long MA: {long_window} periods ({ma_type.upper()})
-        
-        Rules:
-        - BUY when short MA crosses above long MA
-        - SELL when short MA crosses below long MA
-        
-        Best for: Trending markets
-        Weakness: Whipsaws in sideways markets
-        """
+        return (
+            "均线交叉策略\n"
+            "------------------------------\n"
+            f"类型：趋势跟随\n"
+            f"短均线：{short_window} （{ma_type}）\n"
+            f"长均线：{long_window} （{ma_type}）\n"
+            "规则：短期向上突破买入，向下跌破卖出\n"
+            "适用：趋势行情；在震荡市可能产生较多假信号。\n"
+        )
 
 
 if __name__ == "__main__":
-    # Example usage
     from ..data_provider import DataFetcher
 
-    # Fetch sample data
     fetcher = DataFetcher()
     data = fetcher.fetch_stock_data(
         "AAPL", start_date="2022-01-01", end_date="2023-12-31"
     )
 
-    # Create and run strategy
     strategy = MovingAverageStrategy(short_window=20, long_window=50)
     signals = strategy.generate_signals(data)
 
-    print("Strategy Description:")
     print(strategy.get_strategy_description())
-
-    print("\nFirst 10 signals:")
+    print("\n前十条信号：")
     print(signals.head(10))
 
-    # Run backtest
     results = strategy.backtest(data)
-    print("\nBacktest Results:")
-    print(f"Total Return: {results['total_return']:.2%}")
-    print(f"Final Capital: ${results['final_capital']:,.2f}")
+    print("\n回测结果：")
+    print(f"总收益率: {results['total_return']:.2%}")
+    print(f"期末资金: ${results['final_capital']:,.2f}")

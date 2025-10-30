@@ -1,28 +1,46 @@
 """
-Strategy Comparison Model - 策略对比模型
+策略对比 ORM 模型。
+
+用于保存多策略对比时的聚合结果。
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Integer, String, Text
+
 from src.common.dataaccess import OrmBase
 
 
 class StrategyComparison(OrmBase):
-    """策略对比模型"""
+    """策略对比结果的汇总实体。"""
 
     __tablename__ = "strategy_comparison"
 
     # 主键
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # 对比信息
-    comparison_name = Column(String(200), nullable=False, comment="对比名称")
-    symbols = Column(Text, nullable=False, comment="股票代码列表（JSON）")
-    results = Column(Text, nullable=False, comment="对比结果（JSON）")
-    best_performer = Column(String(100), comment="最佳表现者")
+    # 对比元数据
+    comparison_name = Column(
+        String(200), nullable=False, comment="Comparison task name"
+    )
+    symbols = Column(
+        Text,
+        nullable=False,
+        comment="Symbols included in the comparison (JSON formatted)",
+    )
+    results = Column(
+        Text,
+        nullable=False,
+        comment="Serialized comparison results (JSON formatted)",
+    )
+    best_performer = Column(
+        String(100), comment="Best performing strategy or instrument"
+    )
 
-    # 元数据
-    created_at = Column(DateTime, default=datetime.now, comment="创建时间")
+    # 审计信息
+    created_at = Column(
+        DateTime, default=datetime.now, comment="Record creation timestamp"
+    )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<StrategyComparison(id={self.id}, name={self.comparison_name})>"

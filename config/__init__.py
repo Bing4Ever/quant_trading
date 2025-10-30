@@ -4,7 +4,7 @@ Configuration management for the quantitative trading system.
 
 import os
 import yaml
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Optional, Tuple
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -113,6 +113,10 @@ class Config:
             'PAPER_TRADING': 'trading.paper_trading',
             'API_TIMEOUT': 'api.timeout',
             'DATA_CACHE_DURATION': 'data.cache_duration',
+
+            # Brokers
+            'ALPACA_API_KEY': 'brokers.registry.alpaca.credentials.api_key',
+            'ALPACA_API_SECRET': 'brokers.registry.alpaca.credentials.api_secret',
         }
         
         for env_var, config_key in env_mappings.items():
@@ -236,6 +240,77 @@ class Config:
     def risk_management(self) -> Dict[str, Any]:
         """Get risk management configuration."""
         return self.get('risk_management', {})
+
+    @property
+    def brokers(self) -> Dict[str, Any]:
+        """Get broker configuration."""
+        return self.get('brokers', {})
+
+    def resolve_broker(
+        self,
+        broker_id: Optional[str] = None,
+        **overrides: Any,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """
+        Resolve broker type and parameters using configuration and environment variables.
+
+        Args:
+            broker_id: Desired broker identifier. If None, use default from config.
+            **overrides: Extra parameters to merge into broker configuration.
+
+        Returns:
+            Tuple of (broker_type, broker_params).
+
+        Raises:
+            EnvironmentError: When required credentials are missing.
+        """
+        brokers_cfg = self.brokers or {}
+        default_id = brokers_cfg.get('default', 'simulation')
+        target_id = broker_id or default_id
+
+        registry = brokers_cfg.get('registry', {})
+        definition = registry.get(target_id, {})
+
+        broker_type = definition.get('type', target_id)
+        params = dict(definition.get('params') or {})
+        credentials = definition.get('credentials') or {}
+
+        # Direct credential values
+        for key in ('api_key', 'api_secret', 'base_url'):
+            if key in credentials and credentials[key]:
+                params.setdefault(key, credentials[key])
+
+        # Environment-based credentials
+        env_mapping = {
+            'api_key_env': 'api_key',
+            'api_secret_env': 'api_secret',
+        }
+        missing_credentials = []
+        for env_key, param_name in env_mapping.items():
+            env_var = credentials.get(env_key)
+            if env_var:
+                env_value = self.get_env(env_var)
+                if env_value is not None:
+                    params.setdefault(param_name, env_value)
+                else:
+                    missing_credentials.append(env_var)
+
+        # Merge overrides at the end
+        params.update(overrides)
+
+        # Validate mandatory credentials for known brokers
+        if broker_type == 'alpaca':
+            required = ['api_key', 'api_secret']
+            still_missing = [name for name in required if not params.get(name)]
+            if still_missing:
+                detail = ', '.join(still_missing)
+                env_hint = ', '.join(missing_credentials) or 'ALPACA_API_KEY/ALPACA_API_SECRET'
+                raise EnvironmentError(
+                    f"Missing Alpaca credentials ({detail}). "
+                    f"Please set environment variables ({env_hint}) or provide explicit parameters."
+                )
+
+        return broker_type, params
 
 
 # Global configuration instance

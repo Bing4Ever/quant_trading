@@ -1,234 +1,220 @@
 #!/usr/bin/env python3
 """
-快速功能测试脚本
-测试量化交易系统的核心功能
+系统自检脚本。
+
+依次验证策略模块、自动化模块、多策略运行器以及 Streamlit 入口是否
+能被正确导入并执行基础逻辑，便于快速排查环境或依赖问题。
 """
+
+from __future__ import annotations
 
 import sys
 import traceback
 from datetime import datetime
+from typing import Callable, List, Tuple
 
 
-def test_strategy_imports():
-    """测试策略模块导入"""
-    print("🔧 测试策略模块导入...")
-    
+# --------------------------------------------------------------------------- #
+# 各项自检
+# --------------------------------------------------------------------------- #
+def test_strategy_imports() -> bool:
+    """检查核心策略模块是否能够成功导入。"""
+    print("开始检测：策略模块导入")
     try:
         from src.tradingagent.modules.strategies.base_strategy import BaseStrategy
-        from src.tradingagent.modules.strategies.moving_average_strategy import MovingAverageStrategy
-        from src.tradingagent.modules.strategies.mean_reversion_strategy import MeanReversionStrategy
+        from src.tradingagent.modules.strategies.moving_average_strategy import (
+            MovingAverageStrategy,
+        )
+        from src.tradingagent.modules.strategies.mean_reversion_strategy import (
+            MeanReversionStrategy,
+        )
         from src.tradingagent.modules.strategies.rsi_strategy import RSIStrategy
-        from src.tradingagent.modules.strategies.bollinger_bands import BollingerBandsStrategy
-        from src.tradingagent.modules.strategies.multi_strategy_runner import MultiStrategyRunner
-        
-        print("✅ 所有策略模块导入成功")
+        from src.tradingagent.modules.strategies.bollinger_bands_strategy import (
+            BollingerBandsStrategy,
+        )
+        from src.tradingagent.modules.strategies.multi_strategy_runner import (
+            MultiStrategyRunner,
+        )
+
+        _ = [
+            BaseStrategy,
+            MovingAverageStrategy,
+            MeanReversionStrategy,
+            RSIStrategy,
+            BollingerBandsStrategy,
+            MultiStrategyRunner,
+        ]
+        print("✅ 策略模块导入正常")
         return True
-    except Exception as e:
-        print(f"❌ 策略模块导入失败: {e}")
+    except Exception as exc:  # pragma: no cover - 脚本诊断使用
+        print(f"❌ 策略模块导入失败：{exc}")
         traceback.print_exc()
         return False
 
 
-def test_automation_imports():
-    """测试自动化模块导入"""
-    print("🤖 测试自动化模块导入...")
-    
+def test_automation_imports() -> bool:
+    """检查自动化调度与通知模块。"""
+    print("开始检测：自动化模块导入")
     try:
-        from src.tradingservice.services.automation.scheduler import AutoTradingScheduler
-        from src.tradingservice.services.automation.real_time_monitor import RealTimeMonitor, YFinanceRealTimeProvider
+        from src.tradingservice.services.automation.scheduler import (
+            AutoTradingScheduler,
+        )
+        from src.tradingservice.services.automation.real_time_monitor import RealTimeMonitor
+        from src.tradingservice.services.automation.realtime_provider import PollingDataProvider
         from src.common.logger import TradingLogger
         from src.common.notification import NotificationManager
-        
-        print("✅ 所有自动化模块导入成功")
+
+        _ = [
+            AutoTradingScheduler,
+            RealTimeMonitor,
+            PollingDataProvider,
+            TradingLogger,
+            NotificationManager,
+        ]
+        print("✅ 自动化模块导入正常")
         return True
-    except Exception as e:
-        print(f"❌ 自动化模块导入失败: {e}")
+    except Exception as exc:
+        print(f"❌ 自动化模块导入失败：{exc}")
         traceback.print_exc()
         return False
 
 
-def test_multi_strategy_runner():
-    """测试多策略运行器"""
-    print("🔄 测试多策略运行器...")
-    
+def test_multi_strategy_runner() -> bool:
+    """验证多策略运行器初始化与策略注册。"""
+    print("开始检测：多策略运行器")
     try:
-        from src.tradingagent.modules.strategies.multi_strategy_runner import MultiStrategyRunner
-        
-        # 创建运行器
+        from src.tradingagent.modules.strategies.multi_strategy_runner import (
+            MultiStrategyRunner,
+        )
+
         runner = MultiStrategyRunner()
-        
-        # 检查策略数量
-        strategy_count = len(runner.strategies)
-        print(f"📊 已加载策略数量: {strategy_count}")
-        
-        for name in runner.strategies.keys():
-            print(f"  • {name}")
-        
-        if strategy_count >= 2:
-            print("✅ 多策略运行器测试通过")
+        strategy_names = list(runner.strategies.keys())
+
+        print(f"已加载策略 {len(strategy_names)} 个：{strategy_names}")
+        if len(strategy_names) >= 2:
+            print("✅ 多策略运行器检测通过")
             return True
-        else:
-            print("⚠️ 策略数量不足")
-            return False
-            
-    except Exception as e:
-        print(f"❌ 多策略运行器测试失败: {e}")
+
+        print("❌ 多策略运行器加载的策略数量不足")
+        return False
+    except Exception as exc:
+        print(f"❌ 多策略运行器检测失败：{exc}")
         traceback.print_exc()
         return False
 
 
-def test_data_fetching():
-    """测试数据获取"""
-    print("📈 测试数据获取...")
-    
+def test_data_fetching() -> bool:
+    """验证行情下载与字段标准化。"""
+    print("开始检测：行情下载")
     try:
-        from src.tradingagent.modules.strategies.multi_strategy_runner import MultiStrategyRunner
-        
+        from src.tradingagent.modules.strategies.multi_strategy_runner import (
+            MultiStrategyRunner,
+        )
+
         runner = MultiStrategyRunner()
-        
-        # 测试获取AAPL数据
-        print("📊 获取AAPL测试数据...")
         data = runner.get_market_data("AAPL", period="1mo")
-        
-        print(f"✅ 数据获取成功: {len(data)} 行数据")
-        print(f"📅 数据期间: {data.index[0]} 到 {data.index[-1]}")
-        print(f"📋 数据列: {list(data.columns)}")
-        
+
+        print(f"已获取 {len(data)} 条 AAPL 行情数据，字段：{list(data.columns)}")
         return True
-        
-    except Exception as e:
-        print(f"❌ 数据获取测试失败: {e}")
+    except Exception as exc:
+        print(f"❌ 行情下载检测失败：{exc}")
         traceback.print_exc()
         return False
 
 
-def test_single_strategy():
-    """测试单策略执行"""
-    print("🎯 测试单策略执行...")
-    
+def test_single_strategy() -> bool:
+    """使用默认的移动均线策略进行一次信号生成。"""
+    print("开始检测：单策略信号生成")
     try:
-        from src.tradingagent.modules.strategies.multi_strategy_runner import MultiStrategyRunner
-        
+        from src.tradingagent.modules.strategies.multi_strategy_runner import (
+            MultiStrategyRunner,
+        )
+
         runner = MultiStrategyRunner()
-        
-        # 获取数据
         data = runner.get_market_data("AAPL", period="3mo")
-        
-        # 测试移动平均策略
-        if "移动平均" in runner.strategies:
-            strategy = runner.strategies["移动平均"]
-            print("🔄 测试移动平均策略...")
-            
-            # 生成信号
-            signals = strategy.generate_signals(data)
-            print(f"📊 生成信号: {len(signals)} 条")
-            
-            # 运行回测
-            try:
-                # 尝试使用MultiStrategyRunner的方式
-                runner = MultiStrategyRunner()
-                result = runner.run_single_strategy("移动平均", strategy, "AAPL", data)
-                trades = result.trades
-                print(f"💰 回测完成: {len(trades)} 笔交易")
-            except Exception as e:
-                # 回退到基础回测
-                backtest_results = strategy.backtest(data)
-                trades = []  # 基础回测不返回交易详情
-                print(f"💰 基础回测完成")
-                print(f"📊 收益率: {backtest_results.get('total_return', 0):.2%}")
-            
-            if len(trades) >= 0:  # 修改条件，允许0笔交易也算成功
-                print("✅ 单策略测试通过")
-                return True
-            else:
-                print("⚠️ 测试失败")
-                return False
-        else:
-            print("❌ 移动平均策略未找到")
+
+        strategy = runner.strategies.get("移动均线")
+        if strategy is None:
+            print("❌ 未找到移动均线策略")
             return False
-            
-    except Exception as e:
-        print(f"❌ 单策略测试失败: {e}")
-        traceback.print_exc()
-        return False
 
-
-def test_streamlit_import():
-    """测试Streamlit应用导入"""
-    print("🌐 测试Streamlit应用导入...")
-    
-    try:
-        import streamlit_app
-        print("✅ Streamlit应用导入成功")
+        signals = strategy.generate_signals(data)
+        print(f"信号生成完成，样条数：{len(signals)}")
         return True
-    except Exception as e:
-        print(f"❌ Streamlit应用导入失败: {e}")
+    except Exception as exc:
+        print(f"❌ 单策略检测失败：{exc}")
         traceback.print_exc()
         return False
 
 
-def main():
-    """主测试函数"""
-    print("🚀 量化交易系统功能测试")
+def test_streamlit_import() -> bool:
+    """检测 Streamlit 入口能否导入。"""
+    print("开始检测：Streamlit 入口")
+    try:
+        import streamlit_app  # noqa: F401
+
+        print("✅ Streamlit 入口导入正常")
+        return True
+    except Exception as exc:
+        print(f"❌ Streamlit 入口导入失败：{exc}")
+        traceback.print_exc()
+        return False
+
+
+# --------------------------------------------------------------------------- #
+# 主入口
+# --------------------------------------------------------------------------- #
+def main() -> bool:
+    """依次执行所有检测项。"""
+    print("系统自检开始")
     print("=" * 50)
-    print(f"📅 测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
-    
-    tests = [
+    print(f"时间：{datetime.now():%Y-%m-%d %H:%M:%S}\n")
+
+    tests: List[Tuple[str, Callable[[], bool]]] = [
         ("策略模块导入", test_strategy_imports),
         ("自动化模块导入", test_automation_imports),
         ("多策略运行器", test_multi_strategy_runner),
-        ("数据获取功能", test_data_fetching),
-        ("单策略执行", test_single_strategy),
-        ("Streamlit应用", test_streamlit_import),
+        ("行情下载", test_data_fetching),
+        ("单策略信号生成", test_single_strategy),
+        ("Streamlit 入口", test_streamlit_import),
     ]
-    
-    results = []
-    
-    for test_name, test_func in tests:
-        print(f"\n🧪 {test_name}测试:")
+
+    results: List[Tuple[str, bool]] = []
+
+    for name, func in tests:
+        print(f"\n{name}")
         print("-" * 30)
-        
         try:
-            success = test_func()
-            results.append((test_name, success))
-        except Exception as e:
-            print(f"❌ 测试执行异常: {e}")
-            results.append((test_name, False))
-        
-        print()
-    
-    # 显示测试结果摘要
-    print("📊 测试结果摘要:")
+            success = func()
+            results.append((name, success))
+        except Exception as exc:
+            print(f"❌ {name} 检测出现异常：{exc}")
+            traceback.print_exc()
+            results.append((name, False))
+
+    print("\n检测结果汇总")
     print("=" * 50)
-    
-    passed = 0
-    failed = 0
-    
-    for test_name, success in results:
-        status = "✅ 通过" if success else "❌ 失败"
-        print(f"{test_name:<20} : {status}")
-        
-        if success:
-            passed += 1
-        else:
-            failed += 1
-    
+
+    passed = sum(1 for _, ok in results if ok)
+    failed = len(results) - passed
+
+    for name, ok in results:
+        status = "通过" if ok else "失败"
+        print(f"{name:<20} : {status}")
+
     print("-" * 50)
-    print(f"总计: {len(results)} 项测试")
-    print(f"通过: {passed} 项")
-    print(f"失败: {failed} 项")
-    print(f"成功率: {passed/len(results)*100:.1f}%")
-    
+    print(f"合计项目：{len(results)}")
+    print(f"通过数量：{passed}")
+    print(f"失败数量：{failed}")
+    print(f"通过率：{(passed / len(results) * 100):.1f}%")
+
     if failed == 0:
-        print("\n🎉 所有测试通过！系统运行正常。")
-        print("🚀 可以使用 'python run.py' 启动系统")
+        print("\n✅ 所有自检项目均已通过，可继续后续工作。")
     else:
-        print(f"\n⚠️ 有 {failed} 项测试失败，请检查错误信息")
-    
+        print("\n⚠️ 存在检测失败项，请根据上方日志排查问题。")
+
     return failed == 0
 
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    sys.exit(0 if main() else 1)

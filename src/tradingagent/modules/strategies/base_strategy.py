@@ -4,25 +4,9 @@ Base strategy class for all trading strategies.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any
-from enum import Enum
+from .strategies_models import SignalType, Position
 import pandas as pd
 import numpy as np
-
-class SignalType(Enum):
-    """Trading signal types."""
-
-    BUY = 1
-    SELL = -1
-    HOLD = 0
-
-
-class Position(Enum):
-    """Position types."""
-
-    LONG = 1
-    SHORT = -1
-    FLAT = 0
-
 
 class BaseStrategy(ABC):
     """

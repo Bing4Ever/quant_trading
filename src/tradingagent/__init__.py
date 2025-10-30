@@ -6,7 +6,7 @@ TradingAgent Package - 底层可执行逻辑模块
 架构层次：
 - core.interfaces: 接口定义
 - core.models: 数据模型  
-- core.implementations: 基础实现
+- core.brokers: 券商实现
 - modules: 功能模块（execution, signal, data, risk, strategies, risk_management）
 """
 
@@ -30,9 +30,10 @@ from .core import (
     IDataProvider,
     IRiskController,
     
-    # Implementations
+    # Brokers
     SimulationBroker,
-    LiveBroker
+    AlpacaBroker,
+    BrokerFactory,
 )
 
 # 从 modules 导入基础模块
@@ -97,7 +98,8 @@ __all__ = [
     
     # Implementations
     'SimulationBroker',
-    'LiveBroker',
+    'AlpacaBroker',
+    'BrokerFactory',
     
     # Basic Modules
     'OrderExecutor',

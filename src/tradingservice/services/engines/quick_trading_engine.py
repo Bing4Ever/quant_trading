@@ -7,7 +7,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import yfinance as yf
+from src.tradingagent.modules.data_provider import DataFetcher
 
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent  # 向上一级到项目根目录
@@ -46,6 +46,7 @@ class QuickTradingEngine:
 
         # 初始化组件
         self.data_provider = DataManager()
+        self.data_fetcher = DataFetcher()
         self.strategy = MeanReversionStrategy()
         self.risk_manager = RiskManager(
             max_position_size=0.3,  # 测试用更大仓位
@@ -63,22 +64,39 @@ class QuickTradingEngine:
 
     def get_price(self, symbol: str) -> float:
         """
-        获取实时价格
+        获取当前实时价格
 
         Args:
             symbol (str): 股票代码
 
         Returns:
-            float: 股票价格，获取失败返回0.0
+            float: 当前价格，无法获取时返回 0.0
         """
         try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="1d", interval="1m")
-            if not data.empty:
-                return float(data["Close"].iloc[-1])
-        except (ValueError, KeyError, AttributeError, TypeError) as e:
-            logger.warning("获取 %s 价格失败: %s", symbol, str(e))
+            price = float(self.data_fetcher.get_current_price(symbol))
+            if price > 0:
+                return price
+        except (ValueError, TypeError) as exc:
+            logger.warning("获取 %s 当前价格失败: %s", symbol, str(exc))
+
+        try:
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(days=1)
+            data = self.data_fetcher.fetch_stock_data(
+                symbol,
+                start_date=start_dt,
+                end_date=end_dt,
+                interval="1m",
+            )
+            if data is not None and not data.empty:
+                frame = data.copy()
+                frame.columns = [str(col).lower() for col in frame.columns]
+                latest = frame.iloc[-1]
+                return float(latest.get("close", latest.iloc[-1]))
+        except (ValueError, KeyError, AttributeError, TypeError) as exc:
+            logger.warning("获取 %s 历史数据失败: %s", symbol, str(exc))
         return 0.0
+
 
     def analyze_symbol(self, symbol: str) -> dict:
         """

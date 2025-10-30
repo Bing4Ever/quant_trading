@@ -1,7 +1,6 @@
 # 🚀 量化交易自动化系统 (Automated Quantitative Trading System)
 
 ![Python](https://img.shields.io/badge/python-v3.8+-blue.svg)
-![Streamlit](https://img.shields.io/badge/streamlit-v1.25+-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![Automation](https://img.shields.io/badge/automation-80%25-orange.svg)
@@ -22,7 +21,6 @@
 ```
 quant_trading/
 ├── 📊 核心功能
-│   ├── streamlit_app.py          # 主应用界面
 │   ├── strategies/               # 交易策略库
 │   ├── backtesting/             # 回测引擎
 │   └── portfolio/               # 投资组合管理
@@ -31,8 +29,6 @@ quant_trading/
 │   ├── automation/
 │   │   ├── scheduler.py         # 自动化调度器 ✅
 │   │   ├── real_time_monitor.py # 实时数据监控 ✅
-│   │   ├── streamlit_realtime.py # 实时监控界面 ✅
-│   │   └── streamlit_automation.py # 自动化管理界面
 │   │
 │   └── utils/
 │       ├── logger.py            # 交易日志系统 ✅
@@ -97,8 +93,10 @@ quant_trading/
    # Linux/Mac
    cp config/config.example.yaml config/config.yaml
    
-   # 编辑配置文件，添加你的API密钥
+   # 复制后，根据需要配置 API 密钥
    ```
+
+> ⚠️ 实盘或纸面交易需要在 `.env` 中设置 `ALPACA_API_KEY`、`ALPACA_API_SECRET`，并在 `config/config.yaml` 的 `brokers` 部分启用 `alpaca`。
 
 4. **运行示例**
    ```bash
@@ -301,3 +299,5 @@ For detailed English documentation, please refer to the code comments and docstr
 **⭐ If this project helps you, please give it a star!**
 
 </div>
+
+

@@ -1,4 +1,4 @@
-# 📐 架构设计 V2.0 - 分层架构
+﻿# 📐 架构设计 V2.0 - 分层架构
 
 ## 🎯 架构定义
 
@@ -90,7 +90,7 @@ class SimulationBroker(BrokerInterface):
     - 用于回测和测试
 
 # 实盘实现
-class LiveBroker(BrokerInterface):
+class AlpacaBroker(BrokerInterface):
     - 连接实际经纪商API
     - 真实订单提交
     - 实盘数据获取

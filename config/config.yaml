@@ -1,3 +1,20 @@
+# Broker Configuration
+brokers:
+  default: "alpaca"
+  registry:
+    simulation:
+      type: "simulation"
+      params: {}
+    alpaca:
+      type: "alpaca"
+      params:
+        paper: true
+        data_feed: "iex"
+        default_time_in_force: "gtc"
+      credentials:
+        api_key_env: "ALPACA_API_KEY"
+        api_secret_env: "ALPACA_API_SECRET"
+
 # Market Data Configuration
 market_data:
   default_provider: "yfinance"  # yfinance, alpha_vantage, quandl

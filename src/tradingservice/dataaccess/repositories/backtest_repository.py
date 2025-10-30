@@ -1,21 +1,23 @@
 """
-Backtest Repository - 回测结果仓储
+ 回测结果仓储层。
 
-提供回测结果的数据访问操作
+ 封装回测记录的增删查改与常用查询逻辑。
 """
 
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
 from src.common.dataaccess import BaseRepository
-from ..models.backtest_result import BacktestResult
+from src.tradingservice.dataaccess.models.backtest_result import BacktestResult
 
 logger = logging.getLogger(__name__)
 
 
 class BacktestRepository(BaseRepository[BacktestResult]):
-    """回测结果仓储 - 继承 BaseRepository 获得基础 CRUD 能力"""
+    """面向回测结果的仓储封装。"""
 
     def __init__(self, session: Session):
         super().__init__(BacktestResult, session)
@@ -30,44 +32,42 @@ class BacktestRepository(BaseRepository[BacktestResult]):
         notes: str = "",
     ) -> int:
         """
-        保存回测结果
+        持久化一条新的回测结果。
 
         Args:
-            symbol: 股票代码
-            strategy_name: 策略名称
-            strategy_params: 策略参数
-            results: 回测结果（包含各项指标）
-            backtest_config: 回测配置
-            notes: 备注
+            symbol: 回测标的。
+            strategy_name: 所使用的策略名称。
+            strategy_params: 调用时使用的策略参数。
+            results: 回测产出的绩效指标。
+            backtest_config: 回测配置详情。
+            notes: 自定义备注。
 
         Returns:
-            保存的结果ID
+            数据库生成的主键 ID。
         """
         try:
-            # 创建实体
-            result = BacktestResult(
+            payload = BacktestResult(
                 symbol=symbol,
                 strategy_name=strategy_name,
                 strategy_params=json.dumps(strategy_params, ensure_ascii=False),
                 backtest_config=json.dumps(backtest_config or {}, ensure_ascii=False),
-                total_return=results.get("total_return", 0),
-                annualized_return=results.get("annualized_return", 0),
-                sharpe_ratio=results.get("sharpe_ratio", 0),
-                max_drawdown=results.get("max_drawdown", 0),
-                volatility=results.get("volatility", 0),
-                win_rate=results.get("win_rate", 0),
+                total_return=results.get("total_return", 0.0),
+                annualized_return=results.get("annualized_return", 0.0),
+                sharpe_ratio=results.get("sharpe_ratio", 0.0),
+                max_drawdown=results.get("max_drawdown", 0.0),
+                volatility=results.get("volatility", 0.0),
+                win_rate=results.get("win_rate", 0.0),
                 total_trades=results.get("total_trades", 0),
-                avg_trade_return=results.get("avg_trade_return", 0),
+                avg_trade_return=results.get("avg_trade_return", 0.0),
                 notes=notes,
             )
 
-            # 保存
-            result = self.add(result)
-            logger.info(f"回测结果已保存，ID: {result.id}")
-            return result.id
+            record = self.add(payload)
+            logger.info("Stored backtest result with id=%s", record.id)
+            return record.id
 
-        except Exception as e:
-            logger.error(f"保存回测结果失败: {str(e)}")
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Failed to persist backtest result: %s", exc)
             self.rollback()
             raise
 
@@ -78,15 +78,15 @@ class BacktestRepository(BaseRepository[BacktestResult]):
         limit: int = 50,
     ) -> List[Dict]:
         """
-        获取回测历史记录
+        查询历史回测记录。
 
         Args:
-            symbol: 股票代码（可选）
-            strategy_name: 策略名称（可选）
-            limit: 限制返回数量
+            symbol: 可选的标的过滤条件。
+            strategy_name: 可选的策略过滤条件。
+            limit: 返回结果数量上限。
 
         Returns:
-            回测历史列表（字典格式）
+            回测记录的序列化列表。
         """
         query = self.session.query(BacktestResult)
 
@@ -97,24 +97,21 @@ class BacktestRepository(BaseRepository[BacktestResult]):
             query = query.filter(BacktestResult.strategy_name == strategy_name)
 
         results = query.order_by(BacktestResult.created_at.desc()).limit(limit).all()
-
-        # 转换为字典
-        return [self._to_dict(r) for r in results]
+        return [self._to_dict(result) for result in results]
 
     def get_best_results(
         self, metric: str = "total_return", limit: int = 10
     ) -> List[Dict]:
         """
-        获取最佳回测结果
+        按指定指标获取表现最好的回测结果。
 
         Args:
-            metric: 排序指标（total_return, sharpe_ratio等）
-            limit: 返回数量
+            metric: 排序所依据的指标列名。
+            limit: 返回结果数量上限。
 
         Returns:
-            最佳结果列表
+            按指标倒序排列的回测记录。
         """
-        # 根据指标排序
         order_column = getattr(BacktestResult, metric, BacktestResult.total_return)
 
         results = (
@@ -123,19 +120,18 @@ class BacktestRepository(BaseRepository[BacktestResult]):
             .limit(limit)
             .all()
         )
-
-        return [self._to_dict(r) for r in results]
+        return [self._to_dict(result) for result in results]
 
     def get_by_strategy(self, strategy_name: str, limit: int = 50) -> List[Dict]:
         """
-        获取某策略的所有回测结果
+        获取指定策略的回测历史。
 
         Args:
-            strategy_name: 策略名称
-            limit: 限制返回数量
+            strategy_name: 目标策略。
+            limit: 返回结果数量上限。
 
         Returns:
-            回测结果列表
+            该策略对应的回测记录列表。
         """
         results = (
             self.session.query(BacktestResult)
@@ -144,19 +140,10 @@ class BacktestRepository(BaseRepository[BacktestResult]):
             .limit(limit)
             .all()
         )
-
-        return [self._to_dict(r) for r in results]
+        return [self._to_dict(result) for result in results]
 
     def _to_dict(self, result: BacktestResult) -> Dict:
-        """
-        将模型转换为字典
-
-        Args:
-            result: BacktestResult 实例
-
-        Returns:
-            字典格式的结果
-        """
+        """将 BacktestResult ORM 实例转换为可序列化字典。"""
         return {
             "id": result.id,
             "symbol": result.symbol,
@@ -175,6 +162,8 @@ class BacktestRepository(BaseRepository[BacktestResult]):
             "win_rate": result.win_rate,
             "total_trades": result.total_trades,
             "avg_trade_return": result.avg_trade_return,
-            "created_at": result.created_at.isoformat() if result.created_at else None,
+            "created_at": (
+                result.created_at.isoformat() if result.created_at else None
+            ),
             "notes": result.notes,
         }

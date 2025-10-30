@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Simulation Broker Implementation - 模拟经纪商实现
+Simulation Broker - 仿真券商实现。
 
-用于回测和模拟交易的经纪商实现。
+提供一个内存撮合的简单券商对象, 便于回测与模拟交易使用。
 """
 
 from typing import Dict, List, Optional, Any
@@ -18,7 +18,7 @@ __all__ = ["SimulationBroker"]
 
 
 class SimulationBroker(IBroker):
-    """模拟经纪商 - 用于回测和模拟交易"""
+    """仿真券商, 仅用于本地模拟撮合。"""
 
     def __init__(
         self,
@@ -27,12 +27,12 @@ class SimulationBroker(IBroker):
         data_provider: Optional[IDataProvider] = None,
     ):
         """
-        初始化模拟经纪商
+        初始化仿真券商。
 
         Args:
-            initial_capital: 初始资金
-            commission_rate: 手续费率
-            data_provider: 数据提供器接口（可选）。若提供，将用于获取当前价格。
+            initial_capital: 初始资金。
+            commission_rate: 交易佣金率。
+            data_provider: 市场数据提供器, 用于获取最新价格。
         """
         self.initial_capital = initial_capital
         self.cash = initial_capital
@@ -44,52 +44,48 @@ class SimulationBroker(IBroker):
         self.data_provider: Optional[IDataProvider] = data_provider
 
     def connect(self) -> bool:
-        """连接模拟经纪商"""
+        """连接仿真券商。"""
         self._connected = True
         return True
 
     def disconnect(self) -> bool:
-        """断开模拟经纪商"""
+        """断开连接。"""
         self._connected = False
         return True
 
     def is_connected(self) -> bool:
-        """检查连接状态"""
+        """返回当前连接状态。"""
         return self._connected
 
     def submit_order(self, order: Order) -> bool:
         """
-        提交订单（模拟执行）
+        提交订单 (即时撮合)。
 
         Args:
-            order: 订单对象
+            order: 订单对象。
 
         Returns:
-            bool: 是否成功
+            bool: 是否成交成功。
         """
         if not self._connected:
             return False
 
-        # 获取当前价格
         current_price = self.get_current_price(order.symbol)
         if current_price is None:
             order.status = OrderStatus.REJECTED
             self.orders[order.order_id] = order
             return False
 
-        # 计算交易金额和手续费
         trade_amount = current_price * order.quantity
         commission = trade_amount * self.commission_rate
 
         if order.side == OrderSide.BUY:
-            # 检查资金是否足够
             total_cost = trade_amount + commission
             if self.cash < total_cost:
                 order.status = OrderStatus.REJECTED
                 self.orders[order.order_id] = order
                 return False
 
-            # 执行买入
             self.cash -= total_cost
             if order.symbol not in self.positions:
                 self.positions[order.symbol] = {"quantity": 0, "average_price": 0.0}
@@ -102,7 +98,6 @@ class SimulationBroker(IBroker):
             pos["quantity"] = total_quantity
 
         else:  # SELL
-            # 检查持仓是否足够
             if order.symbol not in self.positions:
                 order.status = OrderStatus.REJECTED
                 self.orders[order.order_id] = order
@@ -114,15 +109,12 @@ class SimulationBroker(IBroker):
                 self.orders[order.order_id] = order
                 return False
 
-            # 执行卖出
             self.cash += trade_amount - commission
             pos["quantity"] -= order.quantity
 
-            # 如果持仓清空则删除
             if pos["quantity"] == 0:
                 del self.positions[order.symbol]
 
-        # 更新订单状态
         order.status = OrderStatus.FILLED
         order.filled_quantity = order.quantity
         order.filled_price = current_price
@@ -132,7 +124,7 @@ class SimulationBroker(IBroker):
         return True
 
     def cancel_order(self, order_id: str) -> bool:
-        """取消订单"""
+        """取消订单 (若仍在待执行状态)。"""
         if order_id in self.orders:
             order = self.orders[order_id]
             if order.status == OrderStatus.PENDING:
@@ -141,11 +133,11 @@ class SimulationBroker(IBroker):
         return False
 
     def get_order_status(self, order_id: str) -> Optional[Order]:
-        """查询订单状态"""
+        """获取指定订单状态。"""
         return self.orders.get(order_id)
 
     def get_account_balance(self) -> Dict[str, float]:
-        """获取账户余额"""
+        """返回账户余额信息。"""
         equity = self.cash
         for symbol, pos in self.positions.items():
             current_price = self.get_current_price(symbol)
@@ -155,7 +147,7 @@ class SimulationBroker(IBroker):
         return {"cash": self.cash, "equity": equity, "buying_power": self.cash}
 
     def get_positions(self) -> List[Position]:
-        """获取持仓信息"""
+        """返回当前持仓列表。"""
         positions = []
         for symbol, pos in self.positions.items():
             current_price = self.get_current_price(symbol)
@@ -164,7 +156,7 @@ class SimulationBroker(IBroker):
                 avg_price = pos["average_price"]
                 market_value = current_price * quantity
                 unrealized_pnl = (current_price - avg_price) * quantity
-                denom = (avg_price * quantity)
+                denom = avg_price * quantity
                 unrealized_pnl_percent = ((unrealized_pnl / denom) * 100) if denom else 0.0
 
                 positions.append(
@@ -183,9 +175,9 @@ class SimulationBroker(IBroker):
 
     def get_current_price(self, symbol: str) -> Optional[float]:
         """
-        获取当前价格（模拟）
+        获取当前价格。
 
-        在实际使用中，这里应该从数据源获取实时价格
+        若没有数据提供器, 返回 ``None`` 表示无法成交。
         """
         if self.data_provider is not None:
             try:

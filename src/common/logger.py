@@ -158,6 +158,23 @@ class TradingLogger:
         symbol_part = f" | {symbol}" if symbol else ""
         self.logger.error(f"ERROR | {error_type}{symbol_part} | {error_message}")
 
+    # ---- 兼容标准 logging 接口 ----
+    def info(self, message: str, *args, **kwargs):
+        """兼容标准 logging 的 info 接口。"""
+        self.logger.info(message, *args, **kwargs)
+
+    def warning(self, message: str, *args, **kwargs):
+        """兼容标准 logging 的 warning 接口。"""
+        self.logger.warning(message, *args, **kwargs)
+
+    def error(self, message: str, *args, **kwargs):
+        """兼容标准 logging 的 error 接口。"""
+        self.logger.error(message, *args, **kwargs)
+
+    def debug(self, message: str, *args, **kwargs):
+        """兼容标准 logging 的 debug 接口。"""
+        self.logger.debug(message, *args, **kwargs)
+
 # 预配置的日志记录器
 def get_scheduler_logger():
     """获取调度器日志记录器"""

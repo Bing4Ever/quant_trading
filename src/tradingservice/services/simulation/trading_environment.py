@@ -7,6 +7,8 @@ Simulation Trading Environment
 
 import time
 import threading
+import uuid
+import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -17,14 +19,19 @@ import numpy as np
 from src.tradingagent.modules.strategies import MultiStrategyRunner
 from src.tradingagent import (
     TradingSignal,
-    SimulationBroker,
     TradingMode,
-    OrderExecutor
+    Order,
+    OrderSide,
+    IBroker,
 )
+from src.tradingagent.core.brokers import BrokerFactory
 from src.tradingagent.modules.risk_management import RiskManager, PositionLimits
 from src.common.logger import TradingLogger
 from src.common.notification import NotificationManager
 from src.tradingservice.services.automation import RealTimeMonitor, ReportGenerator
+from src.tradingservice.services.orchestration import TaskManager
+from src.tradingservice.dataaccess import get_backtest_repository
+from config import config as app_config
 
 
 class SimulationMode(Enum):
@@ -34,20 +41,283 @@ class SimulationMode(Enum):
     PAPER_TRADING = "paper_trading"  # 纸上交易
 
 
+class _FallbackPriceFeed:
+    """基础价格源，用于在缺少实时行情时提供估值。"""
+
+    def __init__(self, default_price: float = 100.0):
+        self._prices: Dict[str, float] = {}
+        self._default_price = default_price
+
+    def get_current_price(self, symbol: str) -> float:
+        """返回指定标的的最新价格，若无记录则生成默认值。"""
+        if symbol not in self._prices:
+            self._prices[symbol] = self._default_price
+        return self._prices[symbol]
+
+    def update_price(self, symbol: str, price: Optional[float]) -> float:
+        """根据传入线索刷新价格缓存，并返回最新价格。"""
+        if price is not None and price > 0:
+            self._prices[symbol] = price
+        return self.get_current_price(symbol)
+
+
+class _DummyDataProvider:
+    """模拟实时数据源，满足实时监控组件的接口需求。"""
+
+    def __init__(self, update_interval: float = 1.0):
+        self._callbacks: List[Any] = []
+        self._subscribed_symbols: set[str] = set()
+        self._prices: Dict[str, float] = {}
+        self._lock = threading.Lock()
+        self._active = False
+        self._thread: Optional[threading.Thread] = None
+        self._update_interval = update_interval
+        self._price_feed: Optional[_FallbackPriceFeed] = None
+
+    def add_callback(self, callback) -> None:
+        """登记数据推送回调。"""
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
+
+    def set_price_feed(self, price_feed: _FallbackPriceFeed) -> None:
+        """注入基础价格源，保持价格缓存同步。"""
+        self._price_feed = price_feed
+
+    def connect(self) -> bool:
+        """模拟连接过程，同时启动价格推送循环。"""
+        if self._active:
+            return True
+        self._active = True
+        self._ensure_loop()
+        return True
+
+    def disconnect(self) -> bool:
+        """模拟断开过程，并停止价格推送。"""
+        if not self._active:
+            return True
+        self._active = False
+        if self._thread:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+        return True
+
+    def subscribe(self, symbols: List[str]) -> None:
+        """注册需要推送行情的标的。"""
+        with self._lock:
+            for symbol in symbols:
+                if symbol not in self._subscribed_symbols:
+                    self._subscribed_symbols.add(symbol)
+                    initial_price = self._get_price(symbol)
+                    self._prices[symbol] = initial_price
+                    self._broadcast(symbol, initial_price)
+
+    def publish_price(self, symbol: str, price: float) -> None:
+        """向已注册的回调广播行情数据。"""
+        recorded_price = self._record_price(symbol, price)
+        self._broadcast(symbol, recorded_price)
+
+    def _ensure_loop(self) -> None:
+        """确保行情推送线程处于运行状态。"""
+        if self._thread and self._thread.is_alive():
+            return
+        self._thread = threading.Thread(
+            target=self._run_price_loop,
+            name="DummyMarketDataFeed",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def _run_price_loop(self) -> None:
+        """定期生成随机行情变动并推送。"""
+        while self._active:
+            with self._lock:
+                symbols = list(self._subscribed_symbols)
+
+            for symbol in symbols:
+                base_price = self._get_price(symbol)
+                random_change = random.uniform(-0.002, 0.002)
+                new_price = max(base_price * (1 + random_change), 0.01)
+                recorded_price = self._record_price(symbol, new_price)
+                self._broadcast(symbol, recorded_price)
+
+            time.sleep(self._update_interval)
+
+    def _get_price(self, symbol: str) -> float:
+        """获取当前记账价格（优先读取共享缓存）。"""
+        if self._price_feed is not None:
+            return self._price_feed.get_current_price(symbol)
+        return self._prices.get(symbol, 100.0)
+
+    def _record_price(self, symbol: str, price: float) -> float:
+        """更新基础价格源与本地缓存，保持模拟行情一致。"""
+        if self._price_feed is not None:
+            recorded = self._price_feed.update_price(symbol, price)
+        else:
+            recorded = price
+        with self._lock:
+            self._prices[symbol] = recorded
+        return recorded
+
+    def _broadcast(self, symbol: str, price: float) -> None:
+        """广播生成的行情快照。"""
+        payload = {
+            "symbol": symbol,
+            "price": price,
+            "timestamp": datetime.now().isoformat(),
+        }
+        for callback in list(self._callbacks):
+            try:
+                callback(payload)
+            except Exception:
+                continue
+
+
+class TradeExecutionEngine:
+    """模拟交易执行器，负责将信号转化为订单并更新账户状态。"""
+
+    def __init__(
+        self,
+        broker: IBroker,
+        mode: TradingMode = TradingMode.SIMULATION,
+        market_data_provider: Optional[_DummyDataProvider] = None,
+    ):
+        self.broker = broker
+        self.mode = mode
+        self.logger = TradingLogger(f"{__name__}.TradeExecutionEngine")
+        self.active = False
+        self.price_feed = _FallbackPriceFeed()
+        self.trade_log: List[Dict[str, Any]] = []
+        self.market_data_provider = market_data_provider
+
+        # 将内部价格源注入模拟券商，弥补缺失的数据提供者。
+        self.broker.data_provider = self.price_feed
+
+    def start(self) -> None:
+        """启动执行引擎并建立券商连接。"""
+        if self.active:
+            return
+        self.broker.connect()
+        self.active = True
+        self.logger.log_system_event("Trade execution engine started", self.mode.value)
+
+    def stop(self) -> None:
+        """停止执行引擎并断开券商连接。"""
+        if not self.active:
+            return
+        self.broker.disconnect()
+        self.active = False
+        self.logger.log_system_event("Trade execution engine stopped", self.mode.value)
+
+    def submit_signal(self, signal: TradingSignal) -> bool:
+        """接收交易信号并尝试生成订单。"""
+        if not self.active:
+            self.logger.warning("Trade engine is inactive, signal discarded")
+            return False
+
+        quantity = int(max(signal.quantity, 0))
+        if quantity == 0:
+            self.logger.warning("Signal quantity is zero, skip execution")
+            return False
+
+        side = OrderSide.BUY if signal.action.lower() == "buy" else OrderSide.SELL
+        reference_price = self.price_feed.update_price(signal.symbol, signal.price)
+
+        # 记录卖出前的平均持仓成本，用于估算盈亏。
+        pre_trade_avg_cost = self._get_average_cost(signal.symbol)
+
+        order = Order(
+            order_id=str(uuid.uuid4()),
+            symbol=signal.symbol,
+            side=side,
+            quantity=quantity,
+            order_type=signal.order_type,
+            price=reference_price,
+            strategy=signal.strategy,
+        )
+
+        submitted = self.broker.submit_order(order)
+        if not submitted:
+            self.logger.warning("Signal rejected by broker: %s %s", signal.symbol, signal.action)
+            return False
+
+        filled_price = order.filled_price or reference_price
+        self.price_feed.update_price(signal.symbol, filled_price)
+        if self.market_data_provider:
+            self.market_data_provider.publish_price(signal.symbol, filled_price)
+
+        trade_entry = {
+            "timestamp": order.timestamp,
+            "symbol": order.symbol,
+            "side": order.side.value,
+            "quantity": order.quantity,
+            "price": filled_price,
+            "order_id": order.order_id,
+            "strategy": order.strategy,
+            "pnl": 0.0,
+        }
+
+        if side == OrderSide.SELL and pre_trade_avg_cost is not None:
+            trade_entry["pnl"] = (filled_price - pre_trade_avg_cost) * order.quantity
+
+        self.trade_log.append(trade_entry)
+        return True
+
+    def get_portfolio_value(self) -> float:
+        """返回账户总资产估值。"""
+        balance = self.broker.get_account_balance()
+        return balance.get("equity", balance.get("cash", 0.0))
+
+    def get_available_cash(self) -> float:
+        """返回可用现金。"""
+        balance = self.broker.get_account_balance()
+        return balance.get("cash", 0.0)
+
+    def get_all_positions(self) -> Dict[str, int]:
+        """返回当前全部持仓数量。"""
+        positions = self.broker.get_positions()
+        return {pos.symbol: pos.quantity for pos in positions}
+
+    def get_position(self, symbol: str) -> int:
+        """查询指定标的持仓数量。"""
+        return self.get_all_positions().get(symbol, 0)
+
+    def get_trade_history(self) -> List[Dict[str, Any]]:
+        """返回简化交易记录，时间字段转换为 ISO 格式。"""
+        history = []
+        for record in self.trade_log:
+            normalized = dict(record)
+            timestamp = normalized.get("timestamp")
+            if isinstance(timestamp, datetime):
+                normalized["timestamp"] = timestamp.isoformat()
+            history.append(normalized)
+        return history
+
+    def _get_average_cost(self, symbol: str) -> Optional[float]:
+        """读取券商记录的平均持仓成本。"""
+        position = self.broker.positions.get(symbol) if hasattr(self.broker, "positions") else None
+        if position:
+            return position.get("average_price")
+        return None
+
+
 @dataclass
 class SimulationConfig:
     """模拟配置"""
     mode: SimulationMode = SimulationMode.LIVE_SIM
     initial_capital: float = 100000.0
+    broker_id: Optional[str] = None
     symbols: Optional[List[str]] = None
     strategies: Optional[List[str]] = None
     duration_hours: int = 24
-    data_interval: str = "1m"
+    data_period: str = "1y"
+    data_interval: str = "1d"
     risk_enabled: bool = True
     notifications_enabled: bool = True
     reports_enabled: bool = True
 
     def __post_init__(self):
+        if not self.broker_id:
+            self.broker_id = app_config.get('brokers.default', 'simulation')
         if self.symbols is None:
             self.symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
         if self.strategies is None:
@@ -104,11 +374,24 @@ class SimulationEnvironment:
         else:
             self.risk_manager = None
 
+        # 基础行情数据源
+        self.market_data_provider = _DummyDataProvider()
+
         # 交易执行引擎
+        broker_type, broker_params = app_config.resolve_broker(self.config.broker_id)
+        if broker_type == "simulation":
+            broker_params.setdefault("initial_capital", self.config.initial_capital)
+            broker_params.setdefault("data_provider", self.market_data_provider)
+
+        broker_instance = BrokerFactory.create(broker_type, **broker_params)
+
         self.execution_engine = TradeExecutionEngine(
-            broker=SimulationBroker(initial_cash=self.config.initial_capital),
-            mode=TradingMode.SIMULATION
+            broker=broker_instance,
+            mode=TradingMode.SIMULATION,
+            market_data_provider=self.market_data_provider
         )
+        # 共享价格缓存，确保模拟行情与执行引擎一致
+        self.market_data_provider.set_price_feed(self.execution_engine.price_feed)
 
         # 通知管理器
         if self.config.notifications_enabled:
@@ -116,8 +399,14 @@ class SimulationEnvironment:
         else:
             self.notification_manager = None
 
+        # 任务管理器，串联实时信号到 TaskManager -> OrderExecutor 链路
+        self.task_manager = TaskManager(broker=self.execution_engine.broker)
+
         # 实时监控器
-        self.real_time_monitor = RealTimeMonitor(data_provider=None)  # Provide actual data provider if available
+        self.real_time_monitor = RealTimeMonitor(
+            data_provider=self.market_data_provider,
+            task_manager=self.task_manager,
+        )
 
         # 报告生成器
         if self.config.reports_enabled:
@@ -150,7 +439,10 @@ class SimulationEnvironment:
             self.execution_engine.start()
 
             # 启动实时监控
-            self.real_time_monitor.start()
+            if hasattr(self.real_time_monitor, "start_monitoring"):
+                self.real_time_monitor.start_monitoring(self.config.symbols)
+            elif hasattr(self.real_time_monitor, "start"):
+                self.real_time_monitor.start()
 
             # 启动模拟主循环
             self.simulation_thread = threading.Thread(
@@ -199,7 +491,10 @@ class SimulationEnvironment:
                 self.risk_manager.stop()
 
             self.execution_engine.stop()
-            self.real_time_monitor.stop()
+            if hasattr(self.real_time_monitor, "stop_monitoring"):
+                self.real_time_monitor.stop_monitoring()
+            elif hasattr(self.real_time_monitor, "stop"):
+                self.real_time_monitor.stop()
 
             # 生成最终报告
             self._generate_final_report()
@@ -252,7 +547,12 @@ class SimulationEnvironment:
         try:
             for symbol in self.config.symbols:
                 # 运行策略分析
-                results = self.strategy_runner.run_all_strategies(symbol, self.config.data_interval)
+                results = self.strategy_runner.run_all_strategies(
+                    symbol=symbol,
+                    period=self.config.data_period,
+                    selected_strategies=None if self.config.strategies == ["all"] else self.config.strategies,
+                    interval=self.config.data_interval,
+                )
 
                 if results:
                     # 分析结果并生成交易信号

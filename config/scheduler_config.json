@@ -63,6 +63,23 @@
       "next_run": null,
       "status": "pending",
       "results": null
+    },
+    {
+      "task_id": "test_task_001",
+      "name": "测试任务 - AAPL分析",
+      "frequency": "daily",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategies": [
+        "all"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "status": "pending",
+      "results": null
     }
   ]
 }

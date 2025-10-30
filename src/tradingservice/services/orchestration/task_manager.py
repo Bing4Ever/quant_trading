@@ -17,16 +17,16 @@ from src.tradingagent import (
     SignalGenerator,
     DataManager,
     RiskController,
-    SimulationBroker,
     TradingSignal,
 )
+from src.tradingagent.core.brokers import BrokerFactory
 from src.tradingagent.modules.data_provider.provider_adapter import SimpleMarketDataProvider
 from src.tradingagent.modules.strategies.multi_strategy_runner import (
     MultiStrategyRunner,
     StrategyResult,
 )
 from .orch_models import Task, TaskStatus
-from config import config
+from config import config as app_config
 
 
 logger = logging.getLogger(__name__)
@@ -46,19 +46,24 @@ class TaskManager:
             initial_capital: 初始资金（用于模拟交易）
         """
 
-        # 准备数据提供器（TradingAgent层）供 SimulationBroker 使用
+        # 准备数据提供器, 便于不同券商复用
         data_provider = SimpleMarketDataProvider()
 
-        # 初始化底层组件
-        self.broker = broker or SimulationBroker(
-            initial_capital=initial_capital, data_provider=data_provider
-        )
+        if broker is not None:
+            self.broker = broker
+        else:
+            broker_type, broker_params = app_config.resolve_broker(None)
+            if broker_type == "simulation":
+                broker_params.setdefault("initial_capital", initial_capital)
+                broker_params.setdefault("data_provider", data_provider)
+
+            self.broker = BrokerFactory.create(broker_type, **broker_params)
         self.data_manager = DataManager()
         self.signal_generator = SignalGenerator()
         self.executor = OrderExecutor(self.broker)
         self.risk_controller = RiskController(self.broker)
         self.strategy_runner = MultiStrategyRunner()
-        self.analysis_period = config.get("tasks.analysis_period", "6mo")
+        self.analysis_period = app_config.get("tasks.analysis_period", "6mo")
 
         # 任务存储
         self.tasks: Dict[str, Task] = {}
@@ -392,6 +397,105 @@ class TaskManager:
             "task_errors": task_errors,
         }
 
+    def process_realtime_signal(
+        self,
+        *,
+        symbol: str,
+        strategy_name: str,
+        action: str,
+        signal_strength: float,
+        confidence: float = 0.0,
+        reason: str = "",
+        target_price: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        处理外部实时信号，复用风控与执行链路。
+
+        Args:
+            symbol: 标的代码
+            strategy_name: 信号来源策略名称
+            action: 买入/卖出
+            signal_strength: 信号强度（-1 到 1）
+            confidence: 信号置信度
+            reason: 信号说明
+            target_price: 目标价格（用于限价单）
+            metadata: 额外元信息
+
+        Returns:
+            dict: 含执行状态、风控结果、订单信息的记录
+        """
+        action = action.lower()
+        result: Dict[str, Any] = {
+            "symbol": symbol,
+            "strategy": strategy_name,
+            "action": action,
+            "signal_strength": signal_strength,
+            "confidence": confidence,
+            "reason": reason,
+        }
+        if metadata:
+            result["metadata"] = metadata
+
+        if action not in {"buy", "sell"}:
+            result["status"] = "ignored"
+            result["risk_check"] = "Unsupported action"
+            return result
+
+        quantity = self._determine_quantity(symbol, action, signal_strength)
+        result["quantity"] = quantity
+        if quantity <= 0:
+            result["status"] = "rejected"
+            result["risk_check"] = "Unable to determine executable quantity"
+            return result
+
+        signal_value = signal_strength if action == "buy" else -abs(signal_strength)
+        strategy_payload: Dict[str, Any] = {
+            "signal": signal_value,
+            "confidence": confidence,
+            "reason": reason,
+        }
+        if target_price is not None:
+            strategy_payload["target_price"] = target_price
+
+        generated_signal = self.signal_generator.generate_signal(
+            symbol=symbol,
+            strategy_name=strategy_name,
+            strategy_result=strategy_payload,
+            quantity=quantity,
+        )
+        if not generated_signal:
+            result["status"] = "ignored"
+            result["risk_check"] = "Signal generator returned None"
+            return result
+
+        generated_signal.quantity = quantity
+        signal_dict = generated_signal.to_dict()
+        result["signal"] = signal_dict
+
+        allowed, risk_reason = self.risk_controller.validate_signal(generated_signal)
+        result["risk_check"] = risk_reason
+        if not allowed:
+            result["status"] = "rejected"
+            return result
+
+        order_id = self.executor.execute_signal(generated_signal)
+        if not order_id:
+            result["status"] = "execution_failed"
+            return result
+
+        order = self.executor.get_order(order_id)
+        if order:
+            self.risk_controller.record_trade(order)
+            order_dict = order.to_dict()
+            result["status"] = "executed"
+            result["order_id"] = order_id
+            result["order"] = order_dict
+            return result
+
+        result["status"] = "order_missing"
+        return result
+
     def _resolve_strategy_names(self, requested: List[str]) -> Optional[List[str]]:
         """将用户输入策略名称映射为系统内策略名称。"""
         if not requested:
@@ -476,7 +580,7 @@ class TaskManager:
         if equity <= 0:
             return 0
 
-        base_risk_fraction = config.get("tasks.risk_per_trade", 0.02)
+        base_risk_fraction = app_config.get("tasks.risk_per_trade", 0.02)
         quantity = int((equity * base_risk_fraction) / price)
         quantity = max(quantity, 1)
 

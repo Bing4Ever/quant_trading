@@ -5,7 +5,10 @@ Automation Services - 自动化服务
 """
 
 from .scheduler import AutoTradingScheduler, ScheduleFrequency, TaskStatus, ScheduledTask
-from .real_time_monitor import RealTimeMonitor, SignalMonitor, RealTimeDataProvider
+from .automation_models import MarketData, TradingSignal
+from .realtime_provider import RealTimeDataProvider, PollingDataProvider
+from .signal_monitor import SignalMonitor
+from .real_time_monitor import RealTimeMonitor
 from .report_generator import ReportGenerator, AutoReportScheduler
 
 __all__ = [
@@ -14,8 +17,11 @@ __all__ = [
     'TaskStatus',
     'ScheduledTask',
     'RealTimeMonitor',
-    'SignalMonitor',
     'RealTimeDataProvider',
+    'PollingDataProvider',
+    'SignalMonitor',
+    'MarketData',
+    'TradingSignal',
     'ReportGenerator',
     'AutoReportScheduler',
 ]
