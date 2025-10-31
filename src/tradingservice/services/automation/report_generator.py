@@ -71,6 +71,32 @@ class ReportGenerator:
         sns.set_style("whitegrid")
         sns.set_palette("husl")
 
+    def _fetch_backtests_between(
+        self, start_datetime: datetime, end_datetime: datetime
+    ) -> List["BacktestResult"]:
+        """
+        查询指定时间区间内的回测结果。
+        """
+        try:
+            from src.tradingservice.dataaccess.models import BacktestResult
+        except ImportError:
+            self.logger.log_error(
+                DATA_COLLECTION_ERROR, "无法导入 BacktestResult 模型用于查询"
+            )
+            return []
+
+        model = getattr(self.backtest_repo, "model", BacktestResult)
+        session = getattr(self.backtest_repo, "session", None)
+        if session is None:
+            return []
+
+        query = (
+            session.query(model)
+            .filter(model.created_at >= start_datetime, model.created_at <= end_datetime)
+            .order_by(model.created_at.asc())
+        )
+        return list(query.all())
+
     def generate_daily_report(self, target_date: date = None) -> str:
         """生成日报"""
         if target_date is None:
@@ -208,12 +234,7 @@ class ReportGenerator:
             end_datetime = datetime.combine(target_date, datetime.max.time())
 
             # 使用 Repository 查询
-            results = self.backtest_repo.find_by(
-                lambda q: q.filter(
-                    BacktestResult.created_at >= start_datetime,
-                    BacktestResult.created_at <= end_datetime
-                )
-            )
+            results = self._fetch_backtests_between(start_datetime, end_datetime)
 
             if results:
                 data['backtest_results'] = results
@@ -254,13 +275,7 @@ class ReportGenerator:
             end_datetime = datetime.combine(end_date, datetime.max.time())
 
             # 使用 Repository 查询
-            from src.tradingservice.dataaccess.models import BacktestResult
-            results = self.backtest_repo.find_by(
-                lambda q: q.filter(
-                    BacktestResult.created_at >= start_datetime,
-                    BacktestResult.created_at <= end_datetime
-                )
-            )
+            results = self._fetch_backtests_between(start_datetime, end_datetime)
 
             if results:
                 data['backtest_results'] = results
@@ -317,13 +332,7 @@ class ReportGenerator:
             end_datetime = datetime.combine(end_date, datetime.max.time())
 
             # 使用 Repository 查询
-            from src.tradingservice.dataaccess.models import BacktestResult
-            results = self.backtest_repo.find_by(
-                lambda q: q.filter(
-                    BacktestResult.created_at >= start_datetime,
-                    BacktestResult.created_at <= end_datetime
-                )
-            )
+            results = self._fetch_backtests_between(start_datetime, end_datetime)
 
             if results:
                 data['backtest_results'] = results

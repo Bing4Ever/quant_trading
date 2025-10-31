@@ -15,7 +15,7 @@ from src.common.logger import TradingLogger
 from src.common.notification import NotificationManager
 from src.tradingagent.modules.strategies import BaseStrategy
 
-from .automation_models import TradingSignal
+from .automation_models import MarketData, TradingSignal
 from .realtime_provider import RealTimeDataProvider, PollingDataProvider
 from .signal_monitor import SignalMonitor
 
@@ -50,7 +50,7 @@ class RealTimeMonitor:
         self.is_running = False
         self.monitored_symbols: set[str] = set()
 
-        self.data_provider.add_callback(self.signal_monitor.process_market_data)
+        self.data_provider.add_callback(self._handle_market_data)
         self.signal_monitor.add_signal_callback(self._handle_signal_notification)
 
     def attach_task_manager(self, task_manager: "TaskManager") -> None:
@@ -131,6 +131,13 @@ class RealTimeMonitor:
             "last_update": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         }
 
+    def _handle_market_data(self, data: MarketData) -> None:
+        """
+        对实时数据提供器的内部回调：转发行情到信号监控器，同时同步未结订单状态。
+        """
+        self.signal_monitor.process_market_data(data)
+        self._sync_order_updates()
+
     def _handle_signal_notification(self, signal: TradingSignal) -> None:
         if signal.signal_type in {"BUY", "SELL"} and signal.confidence >= 0.7:
             message = (
@@ -178,3 +185,53 @@ class RealTimeMonitor:
         result["received_at"] = datetime.now(timezone.utc).isoformat()
         self.execution_log.append(result)
         return result
+
+    def _sync_order_updates(self) -> None:
+        """
+        轮询任务管理器的订单更新，并将结果写入执行日志及通知渠道。
+        """
+        if not self.task_manager:
+            return
+
+        updates = self.task_manager.reconcile_orders()
+        if not updates:
+            return
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        for update in updates:
+            record = {"event": "order_update", "timestamp": timestamp, **update}
+            self.execution_log.append(record)
+
+            status = str(update.get("status", "")).lower()
+            order_info = update.get("order") or {}
+            symbol = order_info.get("symbol") or update.get("order_id", "")
+
+            self.logger.log_system_event(
+                "Realtime order update",
+                f"{update.get('order_id')} -> {status.upper()}",
+            )
+
+            if status in {"filled", "partial_filled", "cancelled", "rejected"}:
+                quantity = order_info.get("filled_quantity") or order_info.get("quantity") or 0
+                price = order_info.get("filled_price")
+                risk_info = update.get("risk_snapshot") or {}
+                equity = risk_info.get("equity")
+                cash = risk_info.get("cash")
+                lines = [
+                    f"Order: {update.get('order_id')}",
+                    f"Status: {status.upper()}",
+                    f"Symbol: {symbol}",
+                ]
+                if quantity:
+                    lines.append(f"Quantity: {quantity}")
+                if price is not None:
+                    lines.append(f"Price: {price:.2f}")
+                if equity is not None:
+                    lines.append(f"Equity: {equity:,.2f}")
+                if cash is not None:
+                    lines.append(f"Cash: {cash:,.2f}")
+
+                self.notification_manager.send_notification(
+                    "\n".join(lines),
+                    f"Order Update - {symbol}",
+                )

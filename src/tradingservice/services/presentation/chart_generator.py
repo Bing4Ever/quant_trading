@@ -1,11 +1,14 @@
 # 📈 交互式图表生成器
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 from datetime import datetime, timedelta
-import yfinance as yf
+from typing import Optional
 import platform
+
+import matplotlib.font_manager as fm
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from src.tradingagent.modules.data_provider import DataProvider
 
 
 # 设置中文字体
@@ -46,7 +49,7 @@ setup_chinese_font()
 class InteractiveChartGenerator:
     """交互式图表生成器"""
 
-    def __init__(self):
+    def __init__(self, data_provider: Optional[DataProvider] = None):
         # 确保中文字体设置
         setup_chinese_font()
 
@@ -58,6 +61,8 @@ class InteractiveChartGenerator:
             "warning": "#ff7f0e",
             "info": "#17a2b8",
         }
+        # 共享数据获取器，避免在服务层直接依赖外部API
+        self.data_provider = data_provider or DataProvider()
 
     def create_price_signal_chart(self, symbol, results=None, strategy_params=None):
         """创建价格和信号图表"""
@@ -66,12 +71,43 @@ class InteractiveChartGenerator:
             setup_chinese_font()
 
             # 获取价格数据
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="1y")
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(days=365)
+            data = self.data_provider.get_historical_data(
+                symbol=symbol,
+                start_date=start_dt.strftime("%Y-%m-%d"),
+                end_date=end_dt.strftime("%Y-%m-%d"),
+                interval="1d",
+            )
 
-            if data.empty:
+            if data is None or data.empty:
                 print(f"❌ 无法获取 {symbol} 的数据")
                 return None
+
+            data = data.copy()
+            if not isinstance(data.index, pd.DatetimeIndex):
+                data.index = pd.to_datetime(data.index)
+            if getattr(data.index, "tz", None) is not None:
+                data.index = data.index.tz_localize(None)
+            data = data.sort_index()
+
+            # 标准化列名，兼容 DataProvider 返回的小写命名
+            normalized_columns = {
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
+                "adjclose": "Adj Close",
+                "adj_close": "Adj Close",
+            }
+            rename_map = {
+                col: normalized_columns[col.lower()]
+                for col in data.columns
+                if col.lower() in normalized_columns
+            }
+            if rename_map:
+                data = data.rename(columns=rename_map)
 
             # 计算技术指标
             data = self._calculate_indicators(data, strategy_params)

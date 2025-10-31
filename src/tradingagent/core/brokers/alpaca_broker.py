@@ -156,10 +156,9 @@ class AlpacaBroker(IBroker):
                 time_in_force=tif,
                 limit_price=order.price,
                 stop_price=stop_price,
+                client_order_id=order.order_id,
             )
-            response = client.submit_order(
-                order_data=request, client_order_id=order.order_id
-            )
+            response = client.submit_order(order_data=request)
 
             self._update_order_from_response(order, response)
             return True
@@ -172,9 +171,16 @@ class AlpacaBroker(IBroker):
         """撤销指定订单。"""
         client = self._ensure_trading_client()
         try:
-            client.cancel_order_by_client_order_id(order_id)
+            remote = client.get_order_by_client_id(order_id)
+            remote_id = getattr(remote, "id", None)
+            if not remote_id:
+                raise ValueError("无法获取 Alpaca 订单编号")
+            client.cancel_order_by_id(remote_id)
             return True
         except APIError as exc:  # pragma: no cover
+            logger.warning("撤销订单失败 (%s): %s", order_id, exc)
+            return False
+        except ValueError as exc:  # pragma: no cover - 兜底
             logger.warning("撤销订单失败 (%s): %s", order_id, exc)
             return False
 
@@ -291,16 +297,16 @@ class AlpacaBroker(IBroker):
     def _map_time_in_force(self, value: Optional[str]) -> TimeInForce:
         raw = (value or self._default_tif).lower()
         mapping = {
-            "gtc": TimeInForce.GTC,
-            "day": TimeInForce.DAY,
-            "fok": TimeInForce.FILL_OR_KILL,
-            "ioc": TimeInForce.IMMEDIATE_OR_CANCEL,
-            "opg": TimeInForce.OPENING,
-            "cls": TimeInForce.CLOSING,
+            "gtc": getattr(TimeInForce, "GTC"),
+            "day": getattr(TimeInForce, "DAY"),
+            "fok": getattr(TimeInForce, "FOK", getattr(TimeInForce, "GTC")),
+            "ioc": getattr(TimeInForce, "IOC", getattr(TimeInForce, "GTC")),
+            "opg": getattr(TimeInForce, "OPG", getattr(TimeInForce, "GTC")),
+            "cls": getattr(TimeInForce, "CLS", getattr(TimeInForce, "GTC")),
         }
-        return mapping.get(raw, TimeInForce.GTC)
+        return mapping.get(raw, getattr(TimeInForce, "GTC"))
 
-    def _build_order_request(
+    def _build_order_request(  # pylint: disable=too-many-arguments
         self,
         *,
         order_type: OrderType,
@@ -310,6 +316,7 @@ class AlpacaBroker(IBroker):
         time_in_force: TimeInForce,
         limit_price: Optional[float],
         stop_price: Optional[float],
+        client_order_id: str,
     ):
         if order_type == OrderType.MARKET:
             return MarketOrderRequest(
@@ -317,6 +324,7 @@ class AlpacaBroker(IBroker):
                 qty=quantity,
                 side=side,
                 time_in_force=time_in_force,
+                client_order_id=client_order_id,
             )
 
         if order_type == OrderType.LIMIT:
@@ -328,6 +336,7 @@ class AlpacaBroker(IBroker):
                 side=side,
                 time_in_force=time_in_force,
                 limit_price=Decimal(str(limit_price)),
+                client_order_id=client_order_id,
             )
 
         if order_type == OrderType.STOP:
@@ -339,6 +348,7 @@ class AlpacaBroker(IBroker):
                 side=side,
                 time_in_force=time_in_force,
                 stop_price=Decimal(str(stop_price)),
+                client_order_id=client_order_id,
             )
 
         if order_type == OrderType.STOP_LIMIT:
@@ -351,6 +361,7 @@ class AlpacaBroker(IBroker):
                 time_in_force=time_in_force,
                 limit_price=Decimal(str(limit_price)),
                 stop_price=Decimal(str(stop_price)),
+                client_order_id=client_order_id,
             )
 
         raise ValueError(f"暂不支持的订单类型: {order_type}")
@@ -372,7 +383,7 @@ class AlpacaBroker(IBroker):
             "new": OrderStatus.PENDING,
             "accepted": OrderStatus.PENDING,
             "pending_new": OrderStatus.PENDING,
-            "partially_filled": OrderStatus.PARTIALLY_FILLED,
+            "partially_filled": getattr(OrderStatus, "PARTIAL_FILLED", OrderStatus.FILLED),
             "filled": OrderStatus.FILLED,
             "done_for_day": OrderStatus.FILLED,
             "canceled": OrderStatus.CANCELLED,

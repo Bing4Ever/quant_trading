@@ -211,8 +211,12 @@ class DataFetcher:
         if data.empty:
             raise ValueError(f"No data found for symbol {symbol}")
 
-        # Standardize column names
+        # 统一列名以适配上层逻辑
         data.columns = [col.lower().replace(" ", "_") for col in data.columns]
+        data.index = pd.to_datetime(data.index)
+        if getattr(data.index, "tz", None) is not None:
+            data.index = data.index.tz_localize(None)
+        data = data.sort_index()
 
         return data
 

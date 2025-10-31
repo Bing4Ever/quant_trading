@@ -76,10 +76,21 @@ class LiveTradingEngine:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
 
-            data = self.data_provider.get_historical_data(
-                symbol, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+            data = self.data_provider.get_stock_data(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                force_update=False,
             )
-            return data if data is not None else pd.DataFrame()
+            if data is None or data.empty:
+                return pd.DataFrame()
+            frame = data.copy()
+            if not isinstance(frame.index, pd.DatetimeIndex):
+                frame.index = pd.to_datetime(frame.index)
+            if frame.index.tz is not None:
+                frame.index = frame.index.tz_localize(None)
+            frame.columns = [str(col).lower() for col in frame.columns]
+            return frame
         except (ValueError, KeyError, AttributeError, TypeError) as e:
             self.logger.error("获取 %s 数据失败: %s", symbol, e)
             return pd.DataFrame()

@@ -8,7 +8,7 @@
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -18,6 +18,7 @@ from src.tradingagent import (
     DataManager,
     RiskController,
     TradingSignal,
+    OrderStatus,
 )
 from src.tradingagent.core.brokers import BrokerFactory
 from src.tradingagent.modules.data_provider.provider_adapter import SimpleMarketDataProvider
@@ -67,6 +68,8 @@ class TaskManager:
 
         # 任务存储
         self.tasks: Dict[str, Task] = {}
+        # 对账日志
+        self.reconciliation_log: List[Dict[str, Any]] = []
 
         # 连接经纪商
         if not self.broker.is_connected():
@@ -486,7 +489,12 @@ class TaskManager:
 
         order = self.executor.get_order(order_id)
         if order:
-            self.risk_controller.record_trade(order)
+            terminal_states = {
+                OrderStatus.FILLED,
+                getattr(OrderStatus, "PARTIAL_FILLED", None),
+            }
+            if order.status in terminal_states:
+                self.risk_controller.record_trade(order)
             order_dict = order.to_dict()
             result["status"] = "executed"
             result["order_id"] = order_id
@@ -495,6 +503,83 @@ class TaskManager:
 
         result["status"] = "order_missing"
         return result
+
+    def reconcile_orders(self) -> List[Dict[str, Any]]:
+        """
+        轮询未完成订单的最新状态，并返回所有结束态的结果。
+
+        Returns:
+            List[Dict[str, Any]]: Order update payloads for downstream consumers.
+        """
+        if not self.executor.pending_orders:
+            return []
+
+        updates = self.executor.update_all_pending_orders()
+        if not updates:
+            return []
+
+        terminal_statuses = {
+            OrderStatus.FILLED,
+            OrderStatus.CANCELLED,
+            OrderStatus.REJECTED,
+        }
+        partial_status = getattr(OrderStatus, "PARTIAL_FILLED", None)
+        if partial_status is not None:
+            terminal_statuses.add(partial_status)
+
+        reconciled: List[Dict[str, Any]] = []
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        for order_id, status in updates.items():
+            status_enum: Optional[OrderStatus] = None
+            if isinstance(status, OrderStatus):
+                status_enum = status
+            elif status:
+                try:
+                    status_enum = OrderStatus(str(status))
+                except ValueError:
+                    status_enum = None
+
+            if status_enum is None or status_enum not in terminal_statuses:
+                continue
+
+            order_obj = self.executor.get_order(order_id)
+            order_payload = order_obj.to_dict() if order_obj else None
+
+            if order_obj and status_enum in terminal_statuses:
+                try:
+                    self.risk_controller.record_trade(order_obj)
+                except Exception as exc:  # pragma: no cover - 防御性
+                    logger.error("记录成交失败: %s", exc)
+
+            risk_snapshot = self.risk_controller.get_risk_metrics()
+
+            reconciled.append(
+                {
+                    "order_id": order_id,
+                    "status": status_enum.value,
+                    "order": order_payload,
+                    "risk_snapshot": risk_snapshot,
+                    "updated_at": timestamp,
+                }
+            )
+            self.reconciliation_log.append(reconciled[-1])
+
+        if not reconciled:
+            return []
+
+        logger.info(
+            "已对账实时订单: %s",
+            ", ".join(
+                f"{entry['order_id']} -> {entry['status']}" for entry in reconciled
+            ),
+        )
+        self.risk_controller.update_peak_equity()
+        return reconciled
+
+    def get_reconciliation_log(self) -> List[Dict[str, Any]]:
+        """返回历史对账记录。"""
+        return list(self.reconciliation_log)
 
     def _resolve_strategy_names(self, requested: List[str]) -> Optional[List[str]]:
         """将用户输入策略名称映射为系统内策略名称。"""

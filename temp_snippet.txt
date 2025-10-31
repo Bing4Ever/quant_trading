@@ -131,25 +131,6 @@ class DataManager:
                 logger.warning(f"未获取到股票数据: {symbol}")
                 return
 
-            # 规范索引与列名，满足数据库存储所需的字段格式
-            data = data.copy()
-            if not isinstance(data.index, pd.DatetimeIndex):
-                data.index = pd.to_datetime(data.index)
-            if data.index.tz is not None:
-                data.index = data.index.tz_localize(None)
-
-            rename_map = {
-                "open": "Open",
-                "high": "High",
-                "low": "Low",
-                "close": "Close",
-                "volume": "Volume",
-                "adjclose": "Adj Close",
-                "adj_close": "Adj Close",
-                "adj close": "Adj Close",
-            }
-            data = data.rename(columns=lambda c: rename_map.get(str(c).lower(), c))
-
             # 获取或创建 repository
             if repository is None:
                 repository = self._get_repository()
@@ -273,3 +254,4 @@ class DataManager:
 
         except Exception as e:
             logger.error(f"清理旧数据失败: {e}")
+
