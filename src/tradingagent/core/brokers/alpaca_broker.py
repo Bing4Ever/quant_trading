@@ -82,7 +82,7 @@ class AlpacaBroker(IBroker):
             raise ImportError(
                 "alpaca-py 未安装, 请运行 `pip install alpaca-py` 后再试。"
             )
-        print(f"Resolved api_key => {api_key}, params api_secret: {api_secret}")
+        print(f"Resolved api_key => {api_key}, params api_secret: {api_secret}, paper : {paper}")
         self.api_key = api_key
         self.api_secret = api_secret
         self.paper = paper
