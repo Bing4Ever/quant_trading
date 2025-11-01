@@ -82,7 +82,7 @@ class AlpacaBroker(IBroker):
             raise ImportError(
                 "alpaca-py 未安装, 请运行 `pip install alpaca-py` 后再试。"
             )
-
+        print(f"Resolved api_key => {api_key}, params api_secret: {api_secret}")
         self.api_key = api_key
         self.api_secret = api_secret
         self.paper = paper
@@ -177,10 +177,10 @@ class AlpacaBroker(IBroker):
                 raise ValueError("无法获取 Alpaca 订单编号")
             client.cancel_order_by_id(remote_id)
             return True
-        except APIError as exc:  # pragma: no cover
+        except ValueError as exc:  # pragma: no cover - 兜底
             logger.warning("撤销订单失败 (%s): %s", order_id, exc)
             return False
-        except ValueError as exc:  # pragma: no cover - 兜底
+        except APIError as exc:  # pragma: no cover
             logger.warning("撤销订单失败 (%s): %s", order_id, exc)
             return False
 
