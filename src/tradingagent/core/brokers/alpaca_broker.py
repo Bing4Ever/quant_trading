@@ -110,7 +110,7 @@ class AlpacaBroker(IBroker):
             # 触发一次账户查询验证凭据
             self._trading_client.get_account()
             self._connected = True
-            logger.info("AlpacaBroker 已连接 (paper=%s)", self.paper)
+            logger.info("AlpacaBroker 已连接 (paper=%s) key = %s", self.paper, self.api_key)
             return True
         except APIError as exc:  # pragma: no cover - 依赖外部服务
             logger.error("连接 Alpaca 失败: %s", exc)
