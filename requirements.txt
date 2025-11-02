@@ -4,8 +4,9 @@ numpy>=1.24.0
 scipy>=1.10.0
 
 # Market data and financial analysis
-yfinance>=0.2.0
-alpaca-py>=0.14.0
+yfinance>=0.2.0,<0.2.66
+alpaca-trade-api>=3.0.0,<3.3
+websockets>=10.0,<11.0
 requests>=2.31.0
 chardet>=5.2.0
 

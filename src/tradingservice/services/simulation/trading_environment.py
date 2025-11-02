@@ -30,14 +30,14 @@ from src.common.logger import TradingLogger
 from src.common.notification import NotificationManager
 from src.tradingservice.services.automation import RealTimeMonitor, ReportGenerator
 from src.tradingservice.services.orchestration import TaskManager
-from src.tradingservice.dataaccess import get_backtest_repository
 from config import config as app_config
 
 
 class SimulationMode(Enum):
     """模拟模式"""
-    BACKTESTING = "backtesting"      # 历史数据回测
-    LIVE_SIM = "live_simulation"     # 实时模拟
+
+    BACKTESTING = "backtesting"  # 历史数据回测
+    LIVE_SIM = "live_simulation"  # 实时模拟
     PAPER_TRADING = "paper_trading"  # 纸上交易
 
 
@@ -237,7 +237,9 @@ class TradeExecutionEngine:
 
         submitted = self.broker.submit_order(order)
         if not submitted:
-            self.logger.warning("Signal rejected by broker: %s %s", signal.symbol, signal.action)
+            self.logger.warning(
+                "Signal rejected by broker: %s %s", signal.symbol, signal.action
+            )
             return False
 
         filled_price = order.filled_price or reference_price
@@ -294,7 +296,11 @@ class TradeExecutionEngine:
 
     def _get_average_cost(self, symbol: str) -> Optional[float]:
         """读取券商记录的平均持仓成本。"""
-        position = self.broker.positions.get(symbol) if hasattr(self.broker, "positions") else None
+        position = (
+            self.broker.positions.get(symbol)
+            if hasattr(self.broker, "positions")
+            else None
+        )
         if position:
             return position.get("average_price")
         return None
@@ -303,6 +309,7 @@ class TradeExecutionEngine:
 @dataclass
 class SimulationConfig:
     """模拟配置"""
+
     mode: SimulationMode = SimulationMode.LIVE_SIM
     initial_capital: float = 100000.0
     broker_id: Optional[str] = None
@@ -316,8 +323,17 @@ class SimulationConfig:
     reports_enabled: bool = True
 
     def __post_init__(self):
-        if not self.broker_id:
-            self.broker_id = app_config.get('brokers.default', 'simulation')
+        chosen_id = (
+            self.broker_id
+            or app_config.get("brokers.default", "simulation")
+            or "simulation"
+        ).lower()
+        if chosen_id != "simulation":
+            try:
+                app_config.resolve_broker(chosen_id)
+            except Exception:  # pragma: no cover - fallback when credentials missing
+                chosen_id = "simulation"
+        self.broker_id = chosen_id
         if self.symbols is None:
             self.symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
         if self.strategies is None:
@@ -347,15 +363,17 @@ class SimulationEnvironment:
 
         # 性能跟踪
         self.performance_metrics = {
-            'trades_executed': 0,
-            'signals_generated': 0,
-            'risk_alerts': 0,
-            'total_pnl': 0.0,
-            'win_rate': 0.0,
-            'sharpe_ratio': 0.0
+            "trades_executed": 0,
+            "signals_generated": 0,
+            "risk_alerts": 0,
+            "total_pnl": 0.0,
+            "win_rate": 0.0,
+            "sharpe_ratio": 0.0,
         }
 
-        self.logger.log_system_event("Simulation environment initialized", f"Mode: {self.config.mode.value}")
+        self.logger.log_system_event(
+            "Simulation environment initialized", f"Mode: {self.config.mode.value}"
+        )
 
     def _initialize_components(self):
         """初始化系统组件"""
@@ -365,7 +383,9 @@ class SimulationEnvironment:
         # 风险管理
         if self.config.risk_enabled:
             risk_limits = PositionLimits()
-            risk_limits.max_position_value = self.config.initial_capital * 0.2  # 20% max position
+            risk_limits.max_position_value = (
+                self.config.initial_capital * 0.2
+            )  # 20% max position
             risk_limits.max_portfolio_concentration = 0.25  # 25% max concentration
             risk_limits.max_total_exposure = 0.8  # 80% max exposure
             risk_limits.max_daily_loss = 0.05  # 5% daily loss limit
@@ -388,7 +408,7 @@ class SimulationEnvironment:
         self.execution_engine = TradeExecutionEngine(
             broker=broker_instance,
             mode=TradingMode.SIMULATION,
-            market_data_provider=self.market_data_provider
+            market_data_provider=self.market_data_provider,
         )
         # 共享价格缓存，确保模拟行情与执行引擎一致
         self.market_data_provider.set_price_feed(self.execution_engine.price_feed)
@@ -419,7 +439,9 @@ class SimulationEnvironment:
         self.signal_history = []
         self.portfolio_history = []
 
-        self.logger.log_system_event("All system components initialized successfully", "")
+        self.logger.log_system_event(
+            "All system components initialized successfully", ""
+        )
 
     def start_simulation(self):
         """启动模拟交易"""
@@ -446,8 +468,7 @@ class SimulationEnvironment:
 
             # 启动模拟主循环
             self.simulation_thread = threading.Thread(
-                target=self._simulation_loop,
-                name="SimulationThread"
+                target=self._simulation_loop, name="SimulationThread"
             )
             self.simulation_thread.daemon = True
             self.simulation_thread.start()
@@ -460,10 +481,12 @@ class SimulationEnvironment:
                     f"Symbols: {', '.join(self.config.symbols)}\n"
                     f"Initial Capital: ${self.config.initial_capital:,.2f}\n"
                     f"Duration: {self.config.duration_hours} hours",
-                    "Trading Simulation Started"
+                    "Trading Simulation Started",
                 )
 
-            self.logger.log_system_event("Simulation started successfully", f"Mode: {self.config.mode.value}")
+            self.logger.log_system_event(
+                "Simulation started successfully", f"Mode: {self.config.mode.value}"
+            )
             return True
 
         except ValueError as e:
@@ -473,7 +496,9 @@ class SimulationEnvironment:
             self.logger.error(f"Key error occurred: {str(e)}")
             return False
         except Exception as e:
-            self.logger.log_error("Simulation Start", f"Failed to start simulation: {str(e)}")
+            self.logger.log_error(
+                "Simulation Start", f"Failed to start simulation: {str(e)}"
+            )
             self.is_running = False
             return False
 
@@ -507,13 +532,15 @@ class SimulationEnvironment:
                     f"Trades: {self.performance_metrics['trades_executed']}\n"
                     f"Total P&L: ${self.performance_metrics['total_pnl']:,.2f}\n"
                     f"Win Rate: {self.performance_metrics['win_rate']:.1%}",
-                    "Trading Simulation Completed"
+                    "Trading Simulation Completed",
                 )
 
             self.logger.log_system_event("Simulation stopped successfully", "")
 
         except Exception as e:
-            self.logger.log_error("Simulation Stop", f"Error stopping simulation: {str(e)}")
+            self.logger.log_error(
+                "Simulation Stop", f"Error stopping simulation: {str(e)}"
+            )
 
     def _simulation_loop(self):
         """模拟交易主循环"""
@@ -535,7 +562,9 @@ class SimulationEnvironment:
                 time.sleep(60)  # 1分钟间隔
 
             except Exception as e:
-                self.logger.log_error("Simulation Loop", f"Error in simulation loop: {str(e)}")
+                self.logger.log_error(
+                    "Simulation Loop", f"Error in simulation loop: {str(e)}"
+                )
                 time.sleep(5)
 
         # 自然结束
@@ -550,7 +579,11 @@ class SimulationEnvironment:
                 results = self.strategy_runner.run_all_strategies(
                     symbol=symbol,
                     period=self.config.data_period,
-                    selected_strategies=None if self.config.strategies == ["all"] else self.config.strategies,
+                    selected_strategies=(
+                        None
+                        if self.config.strategies == ["all"]
+                        else self.config.strategies
+                    ),
                     interval=self.config.data_interval,
                 )
 
@@ -560,25 +593,35 @@ class SimulationEnvironment:
 
                     for signal in signals:
                         # 记录信号
-                        self.signal_history.append({
-                            'timestamp': datetime.now(),
-                            'symbol': symbol,
-                            'signal': signal,
-                            'strategy_results': results
-                        })
+                        self.signal_history.append(
+                            {
+                                "timestamp": datetime.now(),
+                                "symbol": symbol,
+                                "signal": signal,
+                                "strategy_results": results,
+                            }
+                        )
 
                         # 提交到执行引擎
                         success = self.execution_engine.submit_signal(signal)
 
                         if success:
-                            self.performance_metrics['signals_generated'] += 1
-                            signal_info = f"{signal.symbol} {signal.action} {signal.quantity}"
-                            self.logger.log_system_event("Signal submitted", signal_info)
+                            self.performance_metrics["signals_generated"] += 1
+                            signal_info = (
+                                f"{signal.symbol} {signal.action} {signal.quantity}"
+                            )
+                            self.logger.log_system_event(
+                                "Signal submitted", signal_info
+                            )
 
         except Exception as e:
-            self.logger.log_error("Strategy Analysis", f"Error in strategy analysis: {str(e)}")
+            self.logger.log_error(
+                "Strategy Analysis", f"Error in strategy analysis: {str(e)}"
+            )
 
-    def _analyze_results_for_signals(self, symbol: str, results: Dict) -> List[TradingSignal]:  # pylint: disable=unused-argument
+    def _analyze_results_for_signals(
+        self, symbol: str, results: Dict
+    ) -> List[TradingSignal]:  # pylint: disable=unused-argument
         """分析策略结果生成交易信号"""
         signals = []
 
@@ -591,21 +634,23 @@ class SimulationEnvironment:
                 best_strategy = comparison_df.iloc[0]
 
                 # 根据夏普比率和收益率决定信号强度
-                sharpe_ratio = best_strategy.get('夏普比率', 0)
-                total_return = best_strategy.get('总收益率', 0)
+                sharpe_ratio = best_strategy.get("夏普比率", 0)
+                total_return = best_strategy.get("总收益率", 0)
 
                 if sharpe_ratio > 1.5 and total_return > 0.1:  # 强买入信号
-                    quantity = int(self.config.initial_capital * 0.1 / 150)  # 假设价格150
+                    quantity = int(
+                        self.config.initial_capital * 0.1 / 150
+                    )  # 假设价格150
 
                     signal = TradingSignal(
                         symbol=symbol,
-                        strategy=best_strategy.get('策略名称', 'unknown'),
-                        action='buy',
+                        strategy=best_strategy.get("策略名称", "unknown"),
+                        action="buy",
                         quantity=quantity,
                         price=None,  # 市价
                         confidence=min(sharpe_ratio / 2.0, 1.0),
                         reason=f"Strong buy signal: Sharpe={sharpe_ratio:.2f}, Return={total_return:.2%}",
-                        timestamp=datetime.now()
+                        timestamp=datetime.now(),
                     )
                     signals.append(signal)
 
@@ -615,18 +660,22 @@ class SimulationEnvironment:
                     if current_position and current_position > 0:
                         signal = TradingSignal(
                             symbol=symbol,
-                            strategy=best_strategy.get('策略名称', 'unknown'),
-                            action='sell',
+                            strategy=best_strategy.get("策略名称", "unknown"),
+                            action="sell",
                             quantity=current_position // 2,  # 卖出一半
                             price=None,
                             confidence=abs(sharpe_ratio - 0.5),
                             reason=f"Sell signal: Sharpe={sharpe_ratio:.2f}, Return={total_return:.2%}",
-                            timestamp=datetime.now()
+                            timestamp=datetime.now(),
                         )
                         signals.append(signal)
 
         except Exception as e:
-            self.logger.log_error("Signal Analysis", f"Error analyzing results for {symbol}: {str(e)}", symbol)
+            self.logger.log_error(
+                "Signal Analysis",
+                f"Error analyzing results for {symbol}: {str(e)}",
+                symbol,
+            )
 
         return signals
 
@@ -638,12 +687,14 @@ class SimulationEnvironment:
             positions = self.execution_engine.get_all_positions()
 
             # 记录历史
-            self.portfolio_history.append({
-                'timestamp': datetime.now(),
-                'portfolio_value': portfolio_value,
-                'positions': positions.copy(),
-                'cash': self.execution_engine.get_available_cash()
-            })
+            self.portfolio_history.append(
+                {
+                    "timestamp": datetime.now(),
+                    "portfolio_value": portfolio_value,
+                    "positions": positions.copy(),
+                    "cash": self.execution_engine.get_available_cash(),
+                }
+            )
 
             # 更新风险管理器
             if self.risk_manager:
@@ -681,14 +732,14 @@ class SimulationEnvironment:
 
             # 计算总收益
             initial_value = self.config.initial_capital
-            current_value = self.portfolio_history[-1]['portfolio_value']
-            self.performance_metrics['total_pnl'] = current_value - initial_value
+            current_value = self.portfolio_history[-1]["portfolio_value"]
+            self.performance_metrics["total_pnl"] = current_value - initial_value
 
             # 计算收益率序列
             returns = []
             for i in range(1, len(self.portfolio_history)):
-                prev_value = self.portfolio_history[i-1]['portfolio_value']
-                curr_value = self.portfolio_history[i]['portfolio_value']
+                prev_value = self.portfolio_history[i - 1]["portfolio_value"]
+                curr_value = self.portfolio_history[i]["portfolio_value"]
                 if prev_value > 0:
                     returns.append((curr_value - prev_value) / prev_value)
 
@@ -700,14 +751,18 @@ class SimulationEnvironment:
                     mean_return = np.mean(returns_array)
                     std_return = np.std(returns_array)
                     if std_return > 0:
-                        self.performance_metrics['sharpe_ratio'] = mean_return / std_return * np.sqrt(252)  # 年化
+                        self.performance_metrics["sharpe_ratio"] = (
+                            mean_return / std_return * np.sqrt(252)
+                        )  # 年化
 
             # 计算胜率
             trades = self.execution_engine.get_trade_history()
             if trades:
-                profitable_trades = sum(1 for trade in trades if trade.get('pnl', 0) > 0)
-                self.performance_metrics['win_rate'] = profitable_trades / len(trades)
-                self.performance_metrics['trades_executed'] = len(trades)
+                profitable_trades = sum(
+                    1 for trade in trades if trade.get("pnl", 0) > 0
+                )
+                self.performance_metrics["win_rate"] = profitable_trades / len(trades)
+                self.performance_metrics["trades_executed"] = len(trades)
 
         except Exception as e:
             self.logger.error(f"Error calculating performance metrics: {str(e)}")
@@ -720,16 +775,16 @@ class SimulationEnvironment:
 
             # 收集报告数据
             report_data = {
-                'simulation_config': {
-                    'mode': self.config.mode.value,
-                    'duration_hours': self.config.duration_hours,
-                    'symbols': self.config.symbols,
-                    'initial_capital': self.config.initial_capital
+                "simulation_config": {
+                    "mode": self.config.mode.value,
+                    "duration_hours": self.config.duration_hours,
+                    "symbols": self.config.symbols,
+                    "initial_capital": self.config.initial_capital,
                 },
-                'performance_metrics': self.performance_metrics,
-                'portfolio_history': self.portfolio_history[-10:],  # 最近10个记录
-                'signal_history': self.signal_history[-20:],  # 最近20个信号
-                'trade_history': self.execution_engine.get_trade_history()
+                "performance_metrics": self.performance_metrics,
+                "portfolio_history": self.portfolio_history[-10:],  # 最近10个记录
+                "signal_history": self.signal_history[-20:],  # 最近20个信号
+                "trade_history": self.execution_engine.get_trade_history(),
             }
 
             # 生成报告
@@ -755,18 +810,20 @@ class SimulationEnvironment:
 
     def get_status(self) -> Dict[str, Any]:
         """获取模拟状态"""
-        portfolio_value = (self.portfolio_history[-1]['portfolio_value']
-                           if self.portfolio_history
-                           else self.config.initial_capital)
+        portfolio_value = (
+            self.portfolio_history[-1]["portfolio_value"]
+            if self.portfolio_history
+            else self.config.initial_capital
+        )
 
         return {
-            'is_running': self.is_running,
-            'start_time': self.start_time.isoformat() if self.start_time else None,
-            'duration': self._get_simulation_duration(),
-            'performance_metrics': self.performance_metrics,
-            'portfolio_value': portfolio_value,
-            'signals_count': len(self.signal_history),
-            'trades_count': self.performance_metrics['trades_executed']
+            "is_running": self.is_running,
+            "start_time": self.start_time.isoformat() if self.start_time else None,
+            "duration": self._get_simulation_duration(),
+            "performance_metrics": self.performance_metrics,
+            "portfolio_value": portfolio_value,
+            "signals_count": len(self.signal_history),
+            "trades_count": self.performance_metrics["trades_executed"],
         }
 
     def add_manual_signal(self, symbol: str, action: str, quantity: int) -> bool:
@@ -774,26 +831,30 @@ class SimulationEnvironment:
         try:
             signal = TradingSignal(
                 symbol=symbol,
-                strategy='manual',
+                strategy="manual",
                 action=action,
                 quantity=quantity,
                 price=None,
                 confidence=1.0,
                 reason="Manual signal from user",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
             success = self.execution_engine.submit_signal(signal)
 
             if success:
-                self.signal_history.append({
-                    'timestamp': datetime.now(),
-                    'symbol': symbol,
-                    'signal': signal,
-                    'strategy_results': {'manual': True}
-                })
+                self.signal_history.append(
+                    {
+                        "timestamp": datetime.now(),
+                        "symbol": symbol,
+                        "signal": signal,
+                        "strategy_results": {"manual": True},
+                    }
+                )
 
-                self.logger.log_system_event("Manual signal submitted", f"{symbol} {action} {quantity}")
+                self.logger.log_system_event(
+                    "Manual signal submitted", f"{symbol} {action} {quantity}"
+                )
 
             return success
 
@@ -816,7 +877,7 @@ def main():
         duration_hours=2,  # 2小时模拟
         risk_enabled=True,
         notifications_enabled=False,  # 关闭通知避免干扰
-        reports_enabled=True
+        reports_enabled=True,
     )
 
     # 创建模拟环境
@@ -846,7 +907,7 @@ def main():
                 print(f"   Portfolio Value: ${status['portfolio_value']:,.2f}")
                 print(f"   Signals Generated: {status['signals_count']}")
                 print(f"   Trades Executed: {status['trades_count']}")
-                pnl = sim_env.performance_metrics['total_pnl']
+                pnl = sim_env.performance_metrics["total_pnl"]
                 print(f"   Total P&L: ${pnl:,.2f}")
 
             print("\n🏁 Simulation completed!")
@@ -870,7 +931,9 @@ def main():
     print(f"Total Duration: {final_status['duration']}")
     print(f"Final Portfolio Value: ${final_status['portfolio_value']:,.2f}")
     print(f"Total P&L: ${sim_env.performance_metrics['total_pnl']:,.2f}")
-    return_pct = (sim_env.performance_metrics['total_pnl'] / config.initial_capital) * 100
+    return_pct = (
+        sim_env.performance_metrics["total_pnl"] / config.initial_capital
+    ) * 100
     print(f"Return: {return_pct:.2f}%")
     print(f"Trades Executed: {sim_env.performance_metrics['trades_executed']}")
     print(f"Win Rate: {sim_env.performance_metrics['win_rate']:.1%}")

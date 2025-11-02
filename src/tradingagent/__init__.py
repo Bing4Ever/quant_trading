@@ -5,7 +5,7 @@ TradingAgent Package - 底层可执行逻辑模块
 
 架构层次：
 - core.interfaces: 接口定义
-- core.models: 数据模型  
+- core.models: 数据模型
 - core.brokers: 券商实现
 - modules: 功能模块（execution, signal, data, risk, strategies, risk_management）
 """
@@ -17,22 +17,21 @@ from .core import (
     OrderSide,
     OrderStatus,
     TradingMode,
-    
     # Models
     Order,
     Position,
     TradingSignal,
     Balance,
     Account,
-    
     # Interfaces
     IBroker,
     IDataProvider,
     IRiskController,
-    
     # Brokers
     SimulationBroker,
     AlpacaBroker,
+    YFinanceBroker,
+    AlphaVantageBroker,
     BrokerFactory,
 )
 
@@ -43,7 +42,7 @@ from .modules import (
     DataFetcher,
     DataManager,
     RiskController,
-    RiskLimits
+    RiskLimits,
 )
 
 # 从 modules.strategies 导入
@@ -78,54 +77,48 @@ __version__ = "2.0.0"
 
 __all__ = [
     # Enums
-    'OrderType',
-    'OrderSide',
-    'OrderStatus',
-    'TradingMode',
-    
+    "OrderType",
+    "OrderSide",
+    "OrderStatus",
+    "TradingMode",
     # Models
-    'Order',
-    'Position',
-    'TradingSignal',
-    'Balance',
-    'Account',
-    
+    "Order",
+    "Position",
+    "TradingSignal",
+    "Balance",
+    "Account",
     # Interfaces (同时导出新旧名称)
-    'IBroker',
-    'BrokerInterface',  # 向后兼容
-    'IDataProvider',
-    'IRiskController',
-    
+    "IBroker",
+    "BrokerInterface",  # 向后兼容
+    "IDataProvider",
+    "IRiskController",
     # Implementations
-    'SimulationBroker',
-    'AlpacaBroker',
-    'BrokerFactory',
-    
+    "SimulationBroker",
+    "AlpacaBroker",
+    "YFinanceBroker",
+    "AlphaVantageBroker",
+    "BrokerFactory",
     # Basic Modules
-    'OrderExecutor',
-    'SignalGenerator',
-    'DataFetcher',
-    'DataManager',
-    'RiskController',
-    'RiskLimits',
-    
+    "OrderExecutor",
+    "SignalGenerator",
+    "DataFetcher",
+    "DataManager",
+    "RiskController",
+    "RiskLimits",
     # Strategies
-    'BaseStrategy',
-    'MovingAverageStrategy',
-    'RSIStrategy',
-    'BollingerBandsStrategy',
-    'MeanReversionStrategy',
-    'MultiStrategyRunner',
-    
+    "BaseStrategy",
+    "MovingAverageStrategy",
+    "RSIStrategy",
+    "BollingerBandsStrategy",
+    "MeanReversionStrategy",
+    "MultiStrategyRunner",
     # Risk Management
-    'RiskManager',
-    'RiskMonitor',
-    'RiskCalculator',
-    'RMPositionLimits',
-    'RiskMetrics',
-    
+    "RiskManager",
+    "RiskMonitor",
+    "RiskCalculator",
+    "RMPositionLimits",
+    "RiskMetrics",
     # Backtesting
-    'BacktestEngine',
-    'Trade',
+    "BacktestEngine",
+    "Trade",
 ]
-

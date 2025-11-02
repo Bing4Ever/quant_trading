@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -117,6 +117,24 @@ class FakeBroker(IBroker):
 
     def get_current_price(self, symbol: str) -> Optional[float]:
         return self.price_lookup.get(symbol, 100.0)
+
+    def get_latest_trade(self, symbol: str) -> Optional[Dict[str, Any]]:
+        price = self.get_current_price(symbol)
+        if price is None:
+            return None
+        return {"symbol": symbol, "price": price, "size": 1.0, "timestamp": "simulated"}
+
+    def get_historical_bars(
+        self,
+        symbol: str,
+        start,
+        end,
+        interval: str,
+        *,
+        adjustment: str = "raw",
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        return []
 
 
 def test_task_manager_reconcile_returns_filled_updates():

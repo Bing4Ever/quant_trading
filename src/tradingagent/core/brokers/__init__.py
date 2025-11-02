@@ -13,6 +13,8 @@ from typing import Any, Dict
 from .broker_factory import BrokerFactory, BrokerBuilder
 from .simulation_broker import SimulationBroker
 from .alpaca_broker import AlpacaBroker
+from .alpha_vantage_broker import AlphaVantageBroker
+from .yfinance_broker import YFinanceBroker
 
 
 def _simulation_builder(**kwargs: Dict[str, Any]) -> SimulationBroker:
@@ -36,7 +38,7 @@ def _alpaca_builder(**kwargs: Dict[str, Any]) -> AlpacaBroker:
             "Supply them via configuration or environment variables."
         )
 
-    allowed_kwargs = {"paper", "data_feed", "default_time_in_force"}
+    allowed_kwargs = {"paper", "data_feed", "default_time_in_force", "base_url"}
     broker_kwargs = {k: v for k, v in kwargs.items() if k in allowed_kwargs}
 
     return AlpacaBroker(
@@ -46,8 +48,32 @@ def _alpaca_builder(**kwargs: Dict[str, Any]) -> AlpacaBroker:
     )
 
 
+def _yfinance_builder(**kwargs: Dict[str, Any]) -> YFinanceBroker:
+    """构建 yfinance 行情代理。"""
+    allowed = {"auto_adjust", "prepost"}
+    params = {k: v for k, v in kwargs.items() if k in allowed}
+    return YFinanceBroker(**params)
+
+
+def _alpha_vantage_builder(**kwargs: Dict[str, Any]) -> AlphaVantageBroker:
+    """构建 Alpha Vantage 行情代理。"""
+    api_key = kwargs.get("api_key") or kwargs.get("alpha_vantage_api_key")
+    if not api_key:
+        raise ValueError("Alpha Vantage broker requires an 'api_key'.")
+    return AlphaVantageBroker(api_key=api_key)
+
+
 # 注册内置券商
 BrokerFactory.register("simulation", _simulation_builder, is_default=True)
 BrokerFactory.register("alpaca", _alpaca_builder)
+BrokerFactory.register("yfinance", _yfinance_builder)
+BrokerFactory.register("alpha_vantage", _alpha_vantage_builder)
 
-__all__ = ["BrokerFactory", "BrokerBuilder", "SimulationBroker", "AlpacaBroker"]
+__all__ = [
+    "BrokerFactory",
+    "BrokerBuilder",
+    "SimulationBroker",
+    "AlpacaBroker",
+    "YFinanceBroker",
+    "AlphaVantageBroker",
+]

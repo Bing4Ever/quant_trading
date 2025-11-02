@@ -120,3 +120,4 @@ reports/
 .DS_Store
 Thumbs.dbssh/
 qunat-trading-vm_key.pem
+patch.diff

@@ -16,18 +16,20 @@ from .models import (
     Position,
     TradingSignal,
     Balance,
-    Account
+    Account,
 )
 
 # Interfaces
-from .interfaces import (
-    IBroker,
-    IDataProvider,
-    IRiskController
-)
+from .interfaces import IBroker, IDataProvider, IRiskController
 
 # Brokers
-from .brokers import BrokerFactory, SimulationBroker, AlpacaBroker
+from .brokers import (
+    BrokerFactory,
+    SimulationBroker,
+    AlpacaBroker,
+    YFinanceBroker,
+    AlphaVantageBroker,
+)
 
 # Core utilities
 from .indicators import TechnicalIndicators
@@ -36,30 +38,28 @@ from .data import DataUtils
 
 __all__ = [
     # Enums
-    'OrderType',
-    'OrderSide',
-    'OrderStatus',
-    'TradingMode',
-    
+    "OrderType",
+    "OrderSide",
+    "OrderStatus",
+    "TradingMode",
     # Models
-    'Order',
-    'Position',
-    'TradingSignal',
-    'Balance',
-    'Account',
-    
+    "Order",
+    "Position",
+    "TradingSignal",
+    "Balance",
+    "Account",
     # Interfaces
-    'IBroker',
-    'IDataProvider',
-    'IRiskController',
-    
+    "IBroker",
+    "IDataProvider",
+    "IRiskController",
     # Brokers
-    'SimulationBroker',
-    'AlpacaBroker',
-    'BrokerFactory',
-    
+    "SimulationBroker",
+    "AlpacaBroker",
+    "YFinanceBroker",
+    "AlphaVantageBroker",
+    "BrokerFactory",
     # Core utilities
-    'TechnicalIndicators',
-    'RiskMetrics',
-    'DataUtils',
+    "TechnicalIndicators",
+    "RiskMetrics",
+    "DataUtils",
 ]

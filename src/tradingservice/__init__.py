@@ -9,19 +9,38 @@ Trading Service Package - 上层业务编排层
 __version__ = "2.0.0"
 
 # 从 services 导入主要组件
-from .services.orchestration import TaskManager, Task, TaskStatus
-from .services.automation import AutoTradingScheduler, RealTimeMonitor, ReportGenerator
-from .services.simulation import SimulationEnvironment, SimulationConfig, SimulationMode
-from .services.engines import AdvancedTradingEngine, QuickTradingEngine, LiveTradingEngine
-from .services.analysis import PerformanceAnalyzer, BacktestAnalytics
+try:
+    from .services.orchestration import TaskManager, Task, TaskStatus
+except ImportError:  # pragma: no cover - optional dependency
+    TaskManager = Task = TaskStatus = None
+try:
+    from .services.automation import AutoTradingScheduler, RealTimeMonitor, ReportGenerator
+except ImportError:  # pragma: no cover
+    AutoTradingScheduler = RealTimeMonitor = ReportGenerator = None
+try:
+    from .services.simulation import SimulationEnvironment, SimulationConfig, SimulationMode
+except ImportError:  # pragma: no cover
+    SimulationEnvironment = SimulationConfig = SimulationMode = None
+try:
+    from .services.engines import AdvancedTradingEngine, QuickTradingEngine, LiveTradingEngine
+except ImportError:  # pragma: no cover
+    AdvancedTradingEngine = QuickTradingEngine = LiveTradingEngine = None
+try:
+    from .services.analysis import PerformanceAnalyzer, BacktestAnalytics
+except ImportError:  # pragma: no cover
+    PerformanceAnalyzer = BacktestAnalytics = None
 
 # Data Access Layer (新架构 - 推荐使用)
-from .dataaccess import (
-    get_backtest_repository,
-    get_optimization_repository,
-    get_favorite_repository,
-    get_strategy_comparison_repository
-)
+try:
+    from .dataaccess import (
+        get_backtest_repository,
+        get_optimization_repository,
+        get_favorite_repository,
+        get_strategy_comparison_repository,
+    )
+except ImportError:  # pragma: no cover
+    get_backtest_repository = get_optimization_repository = None
+    get_favorite_repository = get_strategy_comparison_repository = None
 
 # Legacy Storage (已废弃，保留用于兼容性)
 # BacktestDatabase 已迁移至 services.analysis.BacktestAnalytics

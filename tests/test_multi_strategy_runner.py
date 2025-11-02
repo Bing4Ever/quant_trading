@@ -2,6 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import sys
+from pathlib import Path
+
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
 from src.tradingagent.modules.strategies.multi_strategy_runner import (
     MultiStrategyRunner,
 )

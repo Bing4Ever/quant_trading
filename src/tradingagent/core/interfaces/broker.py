@@ -1,121 +1,74 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Broker Interface - 经纪商接口定义
-
-定义经纪商的抽象接口，规范所有经纪商实现必须遵循的契约。
+Abstract broker interface definition.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 from ..models import Order, Position
 
+DatetimeLike = Union[str, datetime]
+
+__all__ = ["IBroker", "DatetimeLike"]
+
 
 class IBroker(ABC):
-    """经纪商接口抽象基类"""
-    
+    """Contract all broker implementations must follow."""
+
     @abstractmethod
     def connect(self) -> bool:
-        """
-        连接到经纪商
-        
-        Returns:
-            bool: 连接是否成功
-        """
-        pass
-    
+        """Establish a connection to the remote broker."""
+
     @abstractmethod
     def disconnect(self) -> bool:
-        """
-        断开与经纪商的连接
-        
-        Returns:
-            bool: 断开是否成功
-        """
-        pass
-    
+        """Tear down the connection to the remote broker."""
+
     @abstractmethod
     def is_connected(self) -> bool:
-        """
-        检查是否已连接
-        
-        Returns:
-            bool: 是否已连接
-        """
-        pass
-    
+        """Return True when the broker connection is active."""
+
     @abstractmethod
     def submit_order(self, order: Order) -> bool:
-        """
-        提交订单
-        
-        Args:
-            order: 订单对象
-            
-        Returns:
-            bool: 提交是否成功
-        """
-        pass
-    
+        """Submit an order to the broker."""
+
     @abstractmethod
     def cancel_order(self, order_id: str) -> bool:
-        """
-        取消订单
-        
-        Args:
-            order_id: 订单ID
-            
-        Returns:
-            bool: 取消是否成功
-        """
-        pass
-    
+        """Cancel an order using the client-defined identifier."""
+
     @abstractmethod
     def get_order_status(self, order_id: str) -> Optional[Order]:
-        """
-        查询订单状态
-        
-        Args:
-            order_id: 订单ID
-            
-        Returns:
-            Order: 订单对象，如果不存在则返回None
-        """
-        pass
-    
+        """Return the latest known state for the given order."""
+
     @abstractmethod
     def get_account_balance(self) -> Dict[str, float]:
-        """
-        获取账户余额
-        
-        Returns:
-            Dict: 账户余额信息
-                - cash: 现金余额
-                - equity: 总权益
-                - buying_power: 购买力
-        """
-        pass
-    
+        """Return a dictionary with cash, equity, and buying power."""
+
     @abstractmethod
     def get_positions(self) -> List[Position]:
-        """
-        获取持仓信息
-        
-        Returns:
-            List[Position]: 持仓列表
-        """
-        pass
-    
+        """Return the list of currently open positions."""
+
     @abstractmethod
     def get_current_price(self, symbol: str) -> Optional[float]:
-        """
-        获取当前价格
-        
-        Args:
-            symbol: 股票代码
-            
-        Returns:
-            float: 当前价格，如果无法获取则返回None
-        """
-        pass
+        """Return the most recent trade price for the symbol."""
+
+    @abstractmethod
+    def get_latest_trade(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Return the most recent trade snapshot for the symbol."""
+
+    @abstractmethod
+    def get_historical_bars(
+        self,
+        symbol: str,
+        start: Optional[DatetimeLike],
+        end: Optional[DatetimeLike],
+        interval: str,
+        *,
+        adjustment: str = "raw",
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return historical bar data for the symbol."""

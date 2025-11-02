@@ -58,7 +58,10 @@ class ReportGenerator:
         
         # 延迟导入避免循环依赖
         from src.tradingservice import get_backtest_repository
-        self.backtest_repo = get_backtest_repository()
+        try:
+            self.backtest_repo = get_backtest_repository() if callable(get_backtest_repository) else None
+        except Exception:  # pragma: no cover - optional storage
+            self.backtest_repo = None
         
         self.report_dir = Path("reports")
         self.report_dir.mkdir(exist_ok=True)

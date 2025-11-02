@@ -8,29 +8,43 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
-
-from src.tradingagent import Order, OrderStatus
-from src.tradingagent.core.interfaces import IBroker
+from typing import Any, Callable, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.tradingagent import Order, OrderStatus
+from src.tradingagent.core.interfaces import IBroker
 
 
 def _bootstrap_packages() -> None:
     package_roots: Dict[str, Path] = {
         "src": PROJECT_ROOT / "src",
         "src.tradingservice": PROJECT_ROOT / "src" / "tradingservice",
-        "src.tradingservice.services": PROJECT_ROOT / "src" / "tradingservice" / "services",
-        "src.tradingservice.services.automation": PROJECT_ROOT / "src" / "tradingservice" / "services" / "automation",
-        "src.tradingservice.services.orchestration": PROJECT_ROOT / "src" / "tradingservice" / "services" / "orchestration",
+        "src.tradingservice.services": PROJECT_ROOT
+        / "src"
+        / "tradingservice"
+        / "services",
+        "src.tradingservice.services.automation": PROJECT_ROOT
+        / "src"
+        / "tradingservice"
+        / "services"
+        / "automation",
+        "src.tradingservice.services.orchestration": PROJECT_ROOT
+        / "src"
+        / "tradingservice"
+        / "services"
+        / "orchestration",
     }
 
     for pkg_name, pkg_path in package_roots.items():
         if pkg_name not in sys.modules:
-            module = importlib.util.module_from_spec(importlib.machinery.ModuleSpec(pkg_name, loader=None))
+            module = importlib.util.module_from_spec(
+                importlib.machinery.ModuleSpec(pkg_name, loader=None)
+            )
             module.__file__ = str(pkg_path / "__init__.py")
             module.__path__ = [str(pkg_path)]
             sys.modules[pkg_name] = module
@@ -72,7 +86,9 @@ live_runtime_module = _load_module(
 )
 automation_pkg = sys.modules["src.tradingservice.services.automation"]
 if hasattr(live_runtime_module, "LiveTradingRuntime"):
-    setattr(automation_pkg, "LiveTradingRuntime", live_runtime_module.LiveTradingRuntime)
+    setattr(
+        automation_pkg, "LiveTradingRuntime", live_runtime_module.LiveTradingRuntime
+    )
 
 LiveTradingRuntime = live_runtime_module.LiveTradingRuntime
 
@@ -96,7 +112,9 @@ class StubBroker(IBroker):
         order.status = OrderStatus.PENDING
         return True
 
-    def cancel_order(self, order_id: str) -> bool:  # pragma: no cover - 未在该测试中调用
+    def cancel_order(
+        self, order_id: str
+    ) -> bool:  # pragma: no cover - 未在该测试中调用
         return True
 
     def get_order_status(self, order_id: str) -> Optional[Order]:  # pragma: no cover
@@ -110,6 +128,26 @@ class StubBroker(IBroker):
 
     def get_current_price(self, symbol: str) -> Optional[float]:
         return 100.0
+
+    def get_latest_trade(self, symbol: str) -> Optional[Dict[str, Any]]:
+        return {
+            "symbol": symbol,
+            "price": 100.0,
+            "size": 1.0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def get_historical_bars(
+        self,
+        symbol: str,
+        start,
+        end,
+        interval: str,
+        *,
+        adjustment: str = "raw",
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        return []
 
 
 class StubProvider:
