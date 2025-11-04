@@ -10,12 +10,21 @@ Data Access Layer - 数据访问层
 import logging
 from pathlib import Path
 from src.common.dataaccess import DatabaseEngine, OrmBase, BaseRepository
-from .models import BacktestResult, OptimizationRecord, FavoriteStock, StrategyComparison
+from .models import (
+    BacktestResult,
+    OptimizationRecord,
+    FavoriteStock,
+    StrategyComparison,
+    AutomationTaskExecution,
+    AutomationTaskOrder,
+    AutomationRiskSnapshot,
+)
 from .repositories import (
     BacktestRepository,
     OptimizationRepository,
     FavoriteRepository,
-    StrategyComparisonRepository
+    StrategyComparisonRepository,
+    SchedulerExecutionRepository,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,6 +112,18 @@ def get_strategy_comparison_repository() -> StrategyComparisonRepository:
     return StrategyComparisonRepository(session)
 
 
+def get_scheduler_execution_repository() -> SchedulerExecutionRepository:
+    """
+    获取调度执行仓储（业务库）
+    
+    Returns:
+        SchedulerExecutionRepository 实例
+    """
+    engine = get_engine('business', 'business')
+    session = engine.get_session()
+    return SchedulerExecutionRepository(session)
+
+
 __all__ = [
     # 基础设施
     'DatabaseEngine',
@@ -112,16 +133,21 @@ __all__ = [
     'OptimizationRecord',
     'FavoriteStock',
     'StrategyComparison',
+    'AutomationTaskExecution',
+    'AutomationTaskOrder',
+    'AutomationRiskSnapshot',
     # 仓储
     'BaseRepository',
     'BacktestRepository',
     'OptimizationRepository',
     'FavoriteRepository',
     'StrategyComparisonRepository',
+    'SchedulerExecutionRepository',
     # 便捷函数
     'get_engine',
     'get_backtest_repository',
     'get_optimization_repository',
     'get_favorite_repository',
     'get_strategy_comparison_repository',
+    'get_scheduler_execution_repository',
 ]

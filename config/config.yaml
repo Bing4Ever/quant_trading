@@ -47,6 +47,16 @@ trading:
   stop_loss_pct: 0.05  # 5% stop loss
   take_profit_pct: 0.15  # 15% take profit
 
+automation:
+  trading_window:
+    enabled: true
+    timezone: "America/New_York"
+    weekdays: [0, 1, 2, 3, 4]  # Monday = 0
+    start: "09:30"
+    end: "16:00"
+    grace_minutes: 0
+    holidays: []  # Optional list of YYYY-MM-DD strings
+
 # Backtesting Configuration
 backtesting:
   start_date: "2022-01-01"
