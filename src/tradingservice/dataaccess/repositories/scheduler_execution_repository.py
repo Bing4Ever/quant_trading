@@ -1,7 +1,7 @@
 """
-调度执行结果仓储。
+Ã¨Â°Æ’Ã¥ÂºÂ¦Ã¦â€°Â§Ã¨Â¡Å’Ã§Â»â€œÃ¦Å¾Å“Ã¤Â»â€œÃ¥â€šÂ¨Ã£â‚¬â€š
 
-为自动调度任务的执行记录、生成的订单以及风险快照提供持久化能力。
+Ã¤Â¸ÂºÃ¨â€¡ÂªÃ¥Å Â¨Ã¨Â°Æ’Ã¥ÂºÂ¦Ã¤Â»Â»Ã¥Å Â¡Ã§Å¡â€žÃ¦â€°Â§Ã¨Â¡Å’Ã¨Â®Â°Ã¥Â½â€¢Ã£â‚¬ÂÃ§â€Å¸Ã¦Ë†ÂÃ§Å¡â€žÃ¨Â®Â¢Ã¥Ââ€¢Ã¤Â»Â¥Ã¥ÂÅ Ã©Â£Å½Ã©â„¢Â©Ã¥Â¿Â«Ã§â€¦Â§Ã¦ÂÂÃ¤Â¾â€ºÃ¦Å’ÂÃ¤Â¹â€¦Ã¥Å’â€“Ã¨Æ’Â½Ã¥Å â€ºÃ£â‚¬â€š
 """
 
 from __future__ import annotations
@@ -11,7 +11,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import desc
 
 from ..models import (
     AutomationRiskSnapshot,
@@ -21,13 +22,13 @@ from ..models import (
 
 
 class SchedulerExecutionRepository:
-    """面向调度执行结果的 SQLAlchemy 会话封装。"""
+    """Ã©ÂÂ¢Ã¥Ââ€˜Ã¨Â°Æ’Ã¥ÂºÂ¦Ã¦â€°Â§Ã¨Â¡Å’Ã§Â»â€œÃ¦Å¾Å“Ã§Å¡â€ž SQLAlchemy Ã¤Â¼Å¡Ã¨Â¯ÂÃ¥Â°ÂÃ¨Â£â€¦Ã£â‚¬â€š"""
 
     def __init__(self, session: Session):
         self.session = session
 
     # --------------------------------------------------------------------- #
-    # 对外接口
+    # Ã¥Â¯Â¹Ã¥Â¤â€“Ã¦Å½Â¥Ã¥ÂÂ£
     # --------------------------------------------------------------------- #
     def record_execution(
         self,
@@ -46,7 +47,7 @@ class SchedulerExecutionRepository:
         task_errors: Optional[Iterable[str]],
         orders: Iterable[Dict[str, Any]],
     ) -> AutomationTaskExecution:
-        """以事务方式保存执行记录、订单信息与风险快照。"""
+        """Ã¤Â»Â¥Ã¤Âºâ€¹Ã¥Å Â¡Ã¦â€“Â¹Ã¥Â¼ÂÃ¤Â¿ÂÃ¥Â­ËœÃ¦â€°Â§Ã¨Â¡Å’Ã¨Â®Â°Ã¥Â½â€¢Ã£â‚¬ÂÃ¨Â®Â¢Ã¥Ââ€¢Ã¤Â¿Â¡Ã¦ÂÂ¯Ã¤Â¸Å½Ã©Â£Å½Ã©â„¢Â©Ã¥Â¿Â«Ã§â€¦Â§Ã£â‚¬â€š"""
         execution = AutomationTaskExecution(
             task_id=task_id,
             task_name=task_name,
@@ -91,11 +92,50 @@ class SchedulerExecutionRepository:
             raise
 
     def close(self) -> None:
-        """关闭底层 SQLAlchemy 会话。"""
+        """Close the underlying SQLAlchemy session."""
         self.session.close()
 
+    def fetch_recent_executions(
+        self,
+        *,
+        limit: int = 50,
+        task_id: Optional[str] = None,
+        scheduler_status: Optional[str] = None,
+        orchestration_status: Optional[str] = None,
+    ) -> List[AutomationTaskExecution]:
+        """Retrieve recent automation task executions ordered by recency."""
+        limit = max(1, min(int(limit or 50), 500))
+
+        query = (
+            self.session.query(AutomationTaskExecution)
+            .options(
+                joinedload(AutomationTaskExecution.orders),
+                joinedload(AutomationTaskExecution.risk_snapshot),
+            )
+            .order_by(
+                desc(AutomationTaskExecution.started_at),
+                desc(AutomationTaskExecution.id),
+            )
+        )
+
+        if task_id:
+            query = query.filter(AutomationTaskExecution.task_id == task_id)
+
+        if scheduler_status:
+            query = query.filter(
+                AutomationTaskExecution.scheduler_status == scheduler_status
+            )
+
+        if orchestration_status:
+            query = query.filter(
+                AutomationTaskExecution.orchestration_status == orchestration_status
+            )
+
+        return query.limit(limit).all()
+
+
     # ------------------------------------------------------------------ #
-    # 内部辅助方法
+    # Ã¥â€ â€¦Ã©Æ’Â¨Ã¨Â¾â€¦Ã¥Å Â©Ã¦â€“Â¹Ã¦Â³â€¢
     # ------------------------------------------------------------------ #
     def _build_order_models(
         self, execution_id: int, orders: Iterable[Dict[str, Any]]
@@ -173,7 +213,7 @@ class SchedulerExecutionRepository:
 
 
 # ---------------------------------------------------------------------- #
-# 工具函数
+# Ã¥Â·Â¥Ã¥â€¦Â·Ã¥â€¡Â½Ã¦â€¢Â°
 # ---------------------------------------------------------------------- #
 def _json_dump(data: Any) -> str:
     try:

@@ -4,9 +4,15 @@ Scheduler Control Routes
 API endpoints for managing the task scheduler.
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Depends, status
 
-from api.models.scheduler_models import SchedulerStatus, SchedulerControlResponse
+from api.models.scheduler_models import (
+    SchedulerStatus,
+    SchedulerControlResponse,
+    SchedulerExecutionHistoryResponse,
+)
 from api.models.common_models import ErrorResponse
 from api.services.scheduler_service import SchedulerService
 
@@ -32,6 +38,28 @@ async def get_status(
 ) -> SchedulerStatus:
     """Get current scheduler status."""
     return service.get_status()
+
+
+@router.get(
+    "/executions",
+    response_model=SchedulerExecutionHistoryResponse,
+    summary="List recent scheduler executions",
+    description="Fetch recent scheduler execution runs persisted by the automation pipeline.",
+)
+async def list_executions(
+    limit: int = 50,
+    task_id: Optional[str] = None,
+    scheduler_status: Optional[str] = None,
+    orchestration_status: Optional[str] = None,
+    service: SchedulerService = Depends(get_scheduler_service),
+) -> SchedulerExecutionHistoryResponse:
+    """Return recent scheduler execution history."""
+    return service.get_execution_history(
+        limit=limit,
+        task_id=task_id,
+        scheduler_status=scheduler_status,
+        orchestration_status=orchestration_status,
+    )
 
 
 @router.post(

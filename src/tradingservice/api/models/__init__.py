@@ -36,7 +36,11 @@ from api.models.portfolio_models import (
 
 from api.models.scheduler_models import (
     SchedulerStatus,
-    SchedulerControlResponse
+    SchedulerControlResponse,
+    SchedulerExecutionHistoryResponse,
+    SchedulerExecutionRecord,
+    SchedulerExecutionOrder,
+    SchedulerRiskSnapshot,
 )
 
 from api.models.common_models import (
@@ -76,6 +80,10 @@ __all__ = [
     # Scheduler models
     "SchedulerStatus",
     "SchedulerControlResponse",
+    "SchedulerExecutionHistoryResponse",
+    "SchedulerExecutionRecord",
+    "SchedulerExecutionOrder",
+    "SchedulerRiskSnapshot",
     
     # Common models
     "SuccessResponse",

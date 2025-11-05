@@ -56,6 +56,27 @@ automation:
     end: "16:00"
     grace_minutes: 0
     holidays: []  # Optional list of YYYY-MM-DD strings
+  broker_risk_limits:
+    enabled: true
+    strict: true
+    portfolio:
+      max_gross_exposure: 500000        # Absolute gross exposure cap across all symbols
+      max_symbol_percent: 0.25          # Any single symbol <= 25% of total equity
+      max_position_count: 15            # Maximum open symbols at once
+      max_single_order_notional: 150000 # Cap per order notional
+    per_symbol:
+      default:
+        max_position_qty: 1000
+        max_position_notional: 250000
+        max_order_notional: 100000
+      AAPL:
+        max_position_qty: 500
+        max_position_notional: 120000
+        max_order_notional: 60000
+      TSLA:
+        max_position_qty: 300
+        max_position_notional: 90000
+        max_order_notional: 50000
 
 # Backtesting Configuration
 backtesting:

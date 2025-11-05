@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-任务管理器模块 - 上层业务逻辑
+Task orchestration services.
 
-提供统一的任务管理接口，整合调度、执行、监控等功能。
+This module wires together data, strategy, risk, and execution components
+to provide an automated trading task manager.
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+import math
+from copy import deepcopy
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -36,18 +39,18 @@ __all__ = ["TaskManager", "Task", "TaskStatus"]
 
 
 class TaskManager:
-    """任务管理器 - 业务逻辑层核心"""
+    """Coordinates automated trading tasks through the full execution pipeline."""
 
     def __init__(self, broker: Optional[Any] = None, initial_capital: float = 100000.0):
         """
-        初始化任务管理器
+        Initialize the task manager and supporting services.
 
         Args:
-            broker: 经纪商接口，如果为None则使用模拟经纪商
-            initial_capital: 初始资金（用于模拟交易）
+            broker: Optional externally provided broker instance.
+            initial_capital: Default capital used when creating a simulation broker.
         """
 
-        # 准备数据提供器, 便于不同券商复用
+        # Provide a data provider when creating simulated brokers.
         data_provider = SimpleMarketDataProvider()
 
         if broker is not None:
@@ -65,32 +68,31 @@ class TaskManager:
         self.risk_controller = RiskController(self.broker)
         self.strategy_runner = MultiStrategyRunner()
         self.analysis_period = app_config.get("tasks.analysis_period", "6mo")
+        self.broker_risk_limits = self._load_broker_risk_limits()
+        self._cached_risk_state: Optional[Dict[str, Any]] = None
 
-        # 任务存储
         self.tasks: Dict[str, Task] = {}
-        # 对账日志
         self.reconciliation_log: List[Dict[str, Any]] = []
 
-        # 连接经纪商
         if not self.broker.is_connected():
             self.broker.connect()
 
-        logger.info("任务管理器初始化完成")
+        logger.info("TaskManager initialised and broker connection established.")
 
     def create_task(
         self, task_id: str, name: str, symbols: List[str], strategies: List[str]
     ) -> Task:
         """
-        创建新任务
+        Register a scheduled task with the orchestration layer.
 
         Args:
-            task_id: 任务ID
-            name: 任务名称
-            symbols: 股票代码列表
-            strategies: 策略列表
+            task_id: Unique identifier for the task.
+            name: Human readable task name.
+            symbols: Instruments the task should process.
+            strategies: Strategy identifiers the task should execute.
 
         Returns:
-            Task: 任务对象
+            Task: The newly created task metadata container.
         """
         task = Task(
             task_id=task_id,
@@ -101,31 +103,31 @@ class TaskManager:
         )
 
         self.tasks[task_id] = task
-        logger.info(f"创建任务: {name} ({task_id})")
+        logger.info("Registered task %s (%s)", name, task_id)
 
         return task
 
     def get_task(self, task_id: str) -> Optional[Task]:
         """
-        获取任务
+        Look up an existing task by id.
 
         Args:
-            task_id: 任务ID
+            task_id: Unique identifier for the task.
 
         Returns:
-            Task: 任务对象
+            Task: Task metadata if present, otherwise ``None``.
         """
         return self.tasks.get(task_id)
 
     def list_tasks(self, status_filter: Optional[TaskStatus] = None) -> List[Task]:
         """
-        列出所有任务
+        Return all registered tasks, optionally filtered by status.
 
         Args:
-            status_filter: 状态过滤
+            status_filter: Optional status value to filter by.
 
         Returns:
-            List[Task]: 任务列表
+            List[Task]: Collection of task metadata objects.
         """
         tasks = list(self.tasks.values())
 
@@ -136,61 +138,59 @@ class TaskManager:
 
     def execute_task(self, task_id: str) -> bool:
         """
-        执行任务
+        Execute a task through the orchestration pipeline.
 
         Args:
-            task_id: 任务ID
+            task_id: Identifier of the task to run.
 
         Returns:
-            bool: 是否成功
+            bool: ``True`` when the task completes successfully, ``False`` otherwise.
         """
         task = self.tasks.get(task_id)
         if not task:
-            logger.error(f"任务不存在: {task_id}")
+            logger.error("Task %s not found", task_id)
             return False
 
         if task.status == TaskStatus.RUNNING:
-            logger.warning(f"任务正在运行: {task_id}")
+            logger.warning("Task %s is already running", task_id)
             return False
 
         try:
-            # 更新任务状态
             task.status = TaskStatus.RUNNING
             task.started_at = datetime.now()
 
-            logger.info(f"开始执行任务: {task.name}")
+            logger.info("Starting task %s", task.name)
 
             summary = self._run_task_pipeline(task)
 
-            # 更新任务状态
             task.status = TaskStatus.COMPLETED
             task.completed_at = datetime.now()
             task.result = summary
             task.error = None
 
-            logger.info(f"任务执行完成: {task.name}")
+            logger.info("Completed task %s", task.name)
             return True
 
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.completed_at = datetime.now()
             task.error = str(e)
-            logger.error(f"任务执行失败: {task.name} - {e}")
+            logger.error("Task %s failed: %s", task.name, e)
             return False
 
     def cancel_task(self, task_id: str) -> bool:
         """
-        取消任务
+        Cancel a running task if it is still in-flight.
 
         Args:
-            task_id: 任务ID
+            task_id: Identifier of the task to cancel.
 
         Returns:
-            bool: 是否成功
+            bool: ``True`` when the task is cancelled, ``False`` otherwise.
         """
         task = self.tasks.get(task_id)
         if not task:
-            logger.error(f"任务不存在: {task_id}")
+            logger.error("Task %s not found", task_id)
             return False
 
         if task.status in [
@@ -198,39 +198,39 @@ class TaskManager:
             TaskStatus.FAILED,
             TaskStatus.CANCELLED,
         ]:
-            logger.warning(f"任务已结束: {task_id}")
+            logger.warning("Task %s cannot be cancelled in its current state", task_id)
             return False
 
         task.status = TaskStatus.CANCELLED
         task.completed_at = datetime.now()
 
-        logger.info(f"任务已取消: {task.name}")
+        logger.info("Cancelled task %s", task.name)
         return True
 
     def delete_task(self, task_id: str) -> bool:
         """
-        删除任务
+        Remove a task from the registry.
 
         Args:
-            task_id: 任务ID
+            task_id: Identifier of the task to delete.
 
         Returns:
-            bool: 是否成功
+            bool: ``True`` when the task was deleted, ``False`` otherwise.
         """
         if task_id in self.tasks:
             task = self.tasks.pop(task_id)
-            logger.info(f"删除任务: {task.name}")
+            logger.info("Deleted task %s", task.name)
             return True
         else:
-            logger.error(f"任务不存在: {task_id}")
+            logger.error("Task %s not found", task_id)
             return False
 
     def get_account_summary(self) -> Dict[str, Any]:
         """
-        获取账户摘要
+        Collect a snapshot of account, risk, order, and signal statistics.
 
         Returns:
-            Dict: 账户摘要信息
+            Dict: Aggregated summary payload for downstream reporting.
         """
         account_info = self.executor.get_account_info()
         risk_metrics = self.risk_controller.get_risk_metrics()
@@ -246,10 +246,10 @@ class TaskManager:
 
     def get_statistics(self) -> Dict[str, Any]:
         """
-        获取统计信息
+        Gather high-level task statistics.
 
         Returns:
-            Dict: 统计信息
+            Dict: Summary including task counts and account overview.
         """
         total_tasks = len(self.tasks)
         status_counts = {}
@@ -266,7 +266,11 @@ class TaskManager:
 
     def _run_task_pipeline(self, task: Task) -> Dict[str, Any]:
         """
-        执行完整的任务管线：运行策略、生成信号、风控校验、执行虚拟订单。
+        Execute the end-to-end automation pipeline for a scheduled task.
+
+        The pipeline clears previous strategy state, runs analytics, generates
+        actionable signals, applies risk and broker limits, and finally
+        dispatches orders while collecting execution summaries.
         """
         selected_strategies = self._resolve_strategy_names(task.strategies)
         executed_signals: List[Dict[str, Any]] = []
@@ -275,6 +279,49 @@ class TaskManager:
         symbol_summaries: Dict[str, Any] = {}
         task_errors: List[str] = []
 
+        self.refresh_broker_risk_limits()
+        broker_limits_enabled = self.broker_risk_limits.get("enabled", False)
+        positions_state: Dict[str, Dict[str, float]] = {}
+        gross_exposure = 0.0
+        equity = 0.0
+        current_position_count = 0
+
+        if broker_limits_enabled:
+            cached_state = self._cached_risk_state or {}
+            cached_positions = cached_state.get("positions_state") or {}
+            if cached_positions:
+                positions_state = {
+                    symbol: {
+                        "quantity": self._safe_number(data.get("quantity")),
+                        "market_value": self._safe_number(data.get("market_value")),
+                        "price": data.get("price"),
+                    }
+                    for symbol, data in cached_positions.items()
+                }
+                gross_exposure = cached_state.get("gross_exposure", 0.0)
+                equity = cached_state.get("equity", 0.0)
+                current_position_count = cached_state.get(
+                    "position_count",
+                    sum(
+                        1
+                        for entry in positions_state.values()
+                        if not math.isclose(entry.get("quantity", 0.0), 0.0, abs_tol=1e-9)
+                    ),
+                )
+            else:
+                account_snapshot = self.executor.get_account_info()
+                positions_state = self._build_positions_state(account_snapshot.get("positions") or [])
+                gross_exposure = sum(abs(entry["market_value"]) for entry in positions_state.values())
+                balance = account_snapshot.get("balance") or {}
+                equity = self._safe_number(balance.get("equity"))
+                current_position_count = sum(
+                    1
+                    for entry in positions_state.values()
+                    if not math.isclose(entry.get("quantity", 0.0), 0.0, abs_tol=1e-9)
+                )
+
+        self._cached_risk_state = None
+
         for symbol in task.symbols:
             symbol_summary = {
                 "strategies": {},
@@ -282,6 +329,7 @@ class TaskManager:
                 "orders": [],
                 "errors": [],
             }
+            symbol_key = symbol.upper()
 
             try:
                 self.strategy_runner.clear_results()
@@ -351,8 +399,82 @@ class TaskManager:
                         symbol_summary["signals"].append(signal_record)
                         continue
 
+                    previous_entry_copy = None
+                    previous_gross = gross_exposure
+                    previous_position_count = current_position_count
+                    broker_price: Optional[float] = None
+
+                    if broker_limits_enabled:
+                        broker_price = self._resolve_trade_price(symbol, generated_signal)
+                        if broker_price is None or broker_price <= 0:
+                            base_reason = signal_record.get("risk_check")
+                            combined_reason = (
+                                f"{base_reason} | Broker limits: Unable to resolve trade price"
+                                if base_reason
+                                else "Broker limits: Unable to resolve trade price"
+                            )
+                            signal_record["status"] = "risk_blocked"
+                            signal_record["risk_check"] = combined_reason
+                            rejected_signals.append(signal_record)
+                            symbol_summary["signals"].append(signal_record)
+                            continue
+
+                        (
+                            limit_allowed,
+                            limit_reason,
+                            new_qty,
+                            new_market_value,
+                            projected_gross,
+                            projected_position_count,
+                        ) = self._evaluate_broker_limits_for_trade(
+                            symbol=symbol,
+                            action=signal_info["action"],
+                            quantity=trade_quantity,
+                            price=broker_price,
+                            positions_state=positions_state,
+                            gross_exposure=gross_exposure,
+                            equity=equity,
+                            current_position_count=current_position_count,
+                        )
+
+                        if not limit_allowed:
+                            base_reason = signal_record.get("risk_check")
+                            combined_reason = (
+                                f"{base_reason} | Broker limits: {limit_reason}"
+                                if base_reason
+                                else f"Broker limits: {limit_reason}"
+                            )
+                            signal_record["status"] = "risk_blocked"
+                            signal_record["risk_check"] = combined_reason
+                            rejected_signals.append(signal_record)
+                            symbol_summary["signals"].append(signal_record)
+                            continue
+
+                        previous_entry_copy = deepcopy(positions_state.get(symbol_key)) if symbol_key in positions_state else None
+                        previous_gross = gross_exposure
+                        previous_position_count = current_position_count
+
+                        if math.isclose(new_qty, 0.0, abs_tol=1e-9):
+                            positions_state.pop(symbol_key, None)
+                        else:
+                            positions_state[symbol_key] = {
+                                "quantity": new_qty,
+                                "market_value": new_market_value,
+                                "price": broker_price,
+                            }
+                        gross_exposure = projected_gross
+                        current_position_count = projected_position_count
+
                     order_id = self.executor.execute_signal(generated_signal)
                     if not order_id:
+                        if broker_limits_enabled:
+                            if previous_entry_copy is None:
+                                positions_state.pop(symbol_key, None)
+                            else:
+                                positions_state[symbol_key] = previous_entry_copy
+                            gross_exposure = previous_gross
+                            current_position_count = previous_position_count
+
                         signal_record["status"] = "execution_failed"
                         rejected_signals.append(signal_record)
                         symbol_summary["signals"].append(signal_record)
@@ -369,6 +491,14 @@ class TaskManager:
                         )
                         symbol_summary["orders"].append(order_dict)
                     else:
+                        if broker_limits_enabled:
+                            if previous_entry_copy is None:
+                                positions_state.pop(symbol_key, None)
+                            else:
+                                positions_state[symbol_key] = previous_entry_copy
+                            gross_exposure = previous_gross
+                            current_position_count = previous_position_count
+
                         signal_record["status"] = "order_missing"
                         rejected_signals.append(signal_record)
                         symbol_summary["signals"].append(signal_record)
@@ -413,20 +543,20 @@ class TaskManager:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        处理外部实时信号，复用风控与执行链路。
+        Process a single real-time signal through risk checks and optional execution.
 
         Args:
-            symbol: 标的代码
-            strategy_name: 信号来源策略名称
-            action: 买入/卖出
-            signal_strength: 信号强度（-1 到 1）
-            confidence: 信号置信度
-            reason: 信号说明
-            target_price: 目标价格（用于限价单）
-            metadata: 额外元信息
+            symbol: Instrument symbol associated with the signal.
+            strategy_name: Strategy that produced the signal.
+            action: Desired side, e.g. ``\"buy\"`` or ``\"sell\"``.
+            signal_strength: Magnitude of the signal, typically -1 to 1.
+            confidence: Optional confidence score.
+            reason: Human-readable explanation of the signal.
+            target_price: Optional limit price hint.
+            metadata: Arbitrary metadata to attach to the response payload.
 
         Returns:
-            dict: 含执行状态、风控结果、订单信息的记录
+            dict: Result payload capturing status, quantity decisions, and any errors.
         """
         action = action.lower()
         result: Dict[str, Any] = {
@@ -506,7 +636,7 @@ class TaskManager:
 
     def reconcile_orders(self) -> List[Dict[str, Any]]:
         """
-        轮询未完成订单的最新状态，并返回所有结束态的结果。
+        Poll outstanding orders and return status updates.
 
         Returns:
             List[Dict[str, Any]]: Order update payloads for downstream consumers.
@@ -549,8 +679,8 @@ class TaskManager:
             if order_obj and status_enum in terminal_statuses:
                 try:
                     self.risk_controller.record_trade(order_obj)
-                except Exception as exc:  # pragma: no cover - 防御性
-                    logger.error("记录成交失败: %s", exc)
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.error("Failed to record trade during reconciliation: %s", exc)
 
             risk_snapshot = self.risk_controller.get_risk_metrics()
 
@@ -569,20 +699,18 @@ class TaskManager:
             return []
 
         logger.info(
-            "已对账实时订单: %s",
-            ", ".join(
-                f"{entry['order_id']} -> {entry['status']}" for entry in reconciled
-            ),
+            "Reconciled orders: %s",
+            ", ".join(f"{entry['order_id']} -> {entry['status']}" for entry in reconciled),
         )
         self.risk_controller.update_peak_equity()
         return reconciled
 
     def get_reconciliation_log(self) -> List[Dict[str, Any]]:
-        """返回历史对账记录。"""
+        """Return the recorded order reconciliation events."""
         return list(self.reconciliation_log)
 
     def _resolve_strategy_names(self, requested: List[str]) -> Optional[List[str]]:
-        """将用户输入策略名称映射为系统内策略名称。"""
+        """Normalise requested strategy identifiers against the runner registry."""
         if not requested:
             return None
 
@@ -613,7 +741,7 @@ class TaskManager:
         return unique_resolved or None
 
     def _extract_actionable_signal(self, strategy_result: StrategyResult) -> Optional[Dict[str, Any]]:
-        """从策略结果中提取最新的可执行信号。"""
+        """Return the most recent non-zero signal row from a strategy run."""
         signals_df = strategy_result.signals
         if signals_df is None or signals_df.empty or "signal" not in signals_df.columns:
             return None
@@ -655,7 +783,7 @@ class TaskManager:
         }
 
     def _determine_quantity(self, symbol: str, action: str, signal_strength: float) -> int:
-        """根据持仓与资金情况计算下单数量。"""
+        """Calculate an executable quantity based on account state and action."""
         price = self.broker.get_current_price(symbol)
         if not price or price <= 0:
             return 0
@@ -682,7 +810,7 @@ class TaskManager:
         return quantity
 
     def _serialize_strategy_result(self, result: StrategyResult) -> Dict[str, Any]:
-        """将策略结果转换为可序列化字典。"""
+        """Convert a strategy result object into a serialisable dictionary."""
         data = {
             "symbol": result.symbol,
             "total_return": self._safe_number(result.total_return),
@@ -700,12 +828,365 @@ class TaskManager:
             data["trades"] = result.trades
         return data
 
+
+    def refresh_broker_risk_limits(self) -> None:
+        """Reload broker risk limit configuration."""
+        self.broker_risk_limits = self._load_broker_risk_limits()
+
+    def _load_broker_risk_limits(self) -> Dict[str, Any]:
+        """Load broker risk limit settings from application config."""
+        section = app_config.get("automation.broker_risk_limits", {})
+        if not isinstance(section, dict):
+            return {"enabled": False}
+
+        def _safe_float(value: Any) -> Optional[float]:
+            try:
+                if value is None:
+                    return None
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        def _safe_int(value: Any) -> Optional[int]:
+            try:
+                if value is None:
+                    return None
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        portfolio_raw = section.get("portfolio") or {}
+        per_symbol_raw = section.get("per_symbol") or {}
+
+        portfolio_limits = {
+            "max_gross_exposure": _safe_float(portfolio_raw.get("max_gross_exposure")),
+            "max_symbol_percent": _safe_float(portfolio_raw.get("max_symbol_percent")),
+            "max_position_count": _safe_int(portfolio_raw.get("max_position_count")),
+            "max_single_order_notional": _safe_float(portfolio_raw.get("max_single_order_notional")),
+        }
+
+        parsed_symbol_limits: Dict[str, Dict[str, Optional[float]]] = {}
+        for raw_key, raw_limits in per_symbol_raw.items():
+            if not isinstance(raw_limits, dict):
+                continue
+            key = str(raw_key).upper()
+            if key in {"DEFAULT", "*"}:
+                key = "__DEFAULT__"
+            parsed_symbol_limits[key] = {
+                "max_position_qty": _safe_float(raw_limits.get("max_position_qty")),
+                "max_position_notional": _safe_float(raw_limits.get("max_position_notional")),
+                "max_order_notional": _safe_float(raw_limits.get("max_order_notional")),
+            }
+
+        return {
+            "enabled": bool(section.get("enabled", False)),
+            "strict": bool(section.get("strict", True)),
+            "portfolio": portfolio_limits,
+            "per_symbol": parsed_symbol_limits,
+        }
+
+    def _resolve_symbol_limits(self, symbol: str) -> Dict[str, Optional[float]]:
+        """Return the configured limits for the given symbol (or defaults)."""
+        limits = self.broker_risk_limits or {}
+        per_symbol = limits.get("per_symbol") or {}
+        key = symbol.upper()
+        if key in per_symbol:
+            return per_symbol[key]
+        for fallback in ("__DEFAULT__", "DEFAULT", "*"):
+            if fallback in per_symbol:
+                return per_symbol[fallback]
+        return {}
+
+    def _build_positions_state(
+        self, positions: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, float]]:
+        """Normalise broker position payloads into internal state dict."""
+        state: Dict[str, Dict[str, float]] = {}
+        for entry in positions or []:
+            symbol = str(entry.get("symbol") or "").upper()
+            if not symbol:
+                continue
+            quantity = self._safe_number(entry.get("quantity"))
+            current_price = entry.get("current_price")
+            if current_price is None:
+                current_price = entry.get("average_price")
+            price_value = self._safe_number(current_price)
+            market_value = entry.get("market_value")
+            if market_value is None:
+                market_value = quantity * price_value
+            market_value = self._safe_number(market_value)
+            state[symbol] = {
+                "quantity": quantity,
+                "market_value": market_value,
+                "price": price_value if price_value > 0 else None,
+            }
+        return state
+
+    def _resolve_trade_price(
+        self, symbol: str, signal: TradingSignal
+    ) -> Optional[float]:
+        """Best-effort resolution of the trade price used for risk projections."""
+        if signal.price is not None:
+            price = self._safe_number(signal.price)
+            return price if price > 0 else None
+
+        price = None
+        try:
+            price = self._safe_number(self.broker.get_current_price(symbol))
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Failed to query current price for %s: %s", symbol, exc)
+        if price and price > 0:
+            return price
+
+        try:
+            latest_trade = self.broker.get_latest_trade(symbol)
+            if isinstance(latest_trade, dict):
+                for key in ("price", "last", "trade_price", "close"):
+                    candidate = latest_trade.get(key)
+                    if candidate is not None:
+                        price = self._safe_number(candidate)
+                        if price > 0:
+                            return price
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Failed to query latest trade for %s: %s", symbol, exc)
+
+        return None
+
+    def _evaluate_broker_limits_for_trade(
+        self,
+        *,
+        symbol: str,
+        action: str,
+        quantity: float,
+        price: float,
+        positions_state: Dict[str, Dict[str, float]],
+        gross_exposure: float,
+        equity: float,
+        current_position_count: int,
+    ) -> Tuple[bool, str, float, float, float, int]:
+        """Check whether executing a trade would breach configured broker limits."""
+        limits = self.broker_risk_limits or {}
+        symbol_key = symbol.upper()
+        direction = 1 if action.lower() == "buy" else -1 if action.lower() == "sell" else None
+        if direction is None:
+            return (
+                False,
+                f"Unsupported action {action}",
+                positions_state.get(symbol_key, {}).get("quantity", 0.0),
+                positions_state.get(symbol_key, {}).get("market_value", 0.0),
+                gross_exposure,
+                current_position_count,
+            )
+
+        qty = float(quantity)
+        if qty <= 0:
+            return (
+                False,
+                "Computed trade quantity is not positive",
+                positions_state.get(symbol_key, {}).get("quantity", 0.0),
+                positions_state.get(symbol_key, {}).get("market_value", 0.0),
+                gross_exposure,
+                current_position_count,
+            )
+
+        price = self._safe_number(price)
+        if price <= 0:
+            return (
+                False,
+                "Unable to resolve positive trade price for broker limit evaluation",
+                positions_state.get(symbol_key, {}).get("quantity", 0.0),
+                positions_state.get(symbol_key, {}).get("market_value", 0.0),
+                gross_exposure,
+                current_position_count,
+            )
+
+        existing_entry = positions_state.get(symbol_key, {"quantity": 0.0, "market_value": 0.0})
+        existing_qty = self._safe_number(existing_entry.get("quantity"))
+        existing_value = self._safe_number(existing_entry.get("market_value"))
+
+        new_qty = existing_qty + direction * qty
+        new_market_value = new_qty * price
+        trade_notional = abs(qty * price)
+        projected_gross = max(0.0, gross_exposure - abs(existing_value) + abs(new_market_value))
+
+        had_position = not math.isclose(existing_qty, 0.0, abs_tol=1e-9)
+        has_position = not math.isclose(new_qty, 0.0, abs_tol=1e-9)
+        projected_position_count = current_position_count
+        if not had_position and has_position:
+            projected_position_count += 1
+        elif had_position and not has_position:
+            projected_position_count = max(0, projected_position_count - 1)
+
+        if not limits.get("enabled", False):
+            return True, "", new_qty, new_market_value, projected_gross, projected_position_count
+
+        symbol_limits = self._resolve_symbol_limits(symbol_key)
+        max_qty = symbol_limits.get("max_position_qty")
+        if max_qty is not None and abs(new_qty) > max_qty + 1e-9:
+            reason = (
+                f"{symbol_key} position size {abs(new_qty):,.2f} exceeds configured "
+                f"limit {max_qty:,.2f}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        max_notional = symbol_limits.get("max_position_notional")
+        if max_notional is not None and abs(new_market_value) > max_notional + 1e-6:
+            reason = (
+                f"{symbol_key} exposure ${abs(new_market_value):,.2f} exceeds configured "
+                f"limit ${max_notional:,.2f}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        max_order_notional = symbol_limits.get("max_order_notional")
+        if max_order_notional is not None and trade_notional > max_order_notional + 1e-6:
+            reason = (
+                f"{symbol_key} order notional ${trade_notional:,.2f} exceeds configured "
+                f"limit ${max_order_notional:,.2f}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        portfolio_limits = limits.get("portfolio") or {}
+        max_single_order = portfolio_limits.get("max_single_order_notional")
+        if max_single_order is not None and trade_notional > max_single_order + 1e-6:
+            reason = (
+                f"Order notional ${trade_notional:,.2f} exceeds broker-wide cap "
+                f"${max_single_order:,.2f}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        max_gross = portfolio_limits.get("max_gross_exposure")
+        if max_gross is not None and projected_gross > max_gross + 1e-6:
+            reason = (
+                f"Projected gross exposure ${projected_gross:,.2f} exceeds broker "
+                f"limit ${max_gross:,.2f}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        max_symbol_percent = portfolio_limits.get("max_symbol_percent")
+        if (
+            max_symbol_percent is not None
+            and equity > 0
+            and abs(new_market_value) / equity > max_symbol_percent + 1e-6
+        ):
+            reason = (
+                f"{symbol_key} allocation {abs(new_market_value) / equity:.2%} exceeds "
+                f"broker limit {max_symbol_percent:.2%}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        max_position_count = portfolio_limits.get("max_position_count")
+        if (
+            max_position_count is not None
+            and projected_position_count > max_position_count
+        ):
+            reason = (
+                f"Projected open position count {projected_position_count} exceeds "
+                f"broker cap {max_position_count}"
+            )
+            return False, reason, existing_qty, existing_value, gross_exposure, current_position_count
+
+        return True, "", new_qty, new_market_value, projected_gross, projected_position_count
+
+    def check_broker_risk_preconditions(self) -> Tuple[bool, str, Dict[str, Any]]:
+        """Evaluate whether the current portfolio fits within broker risk limits."""
+        self.refresh_broker_risk_limits()
+        limits = self.broker_risk_limits or {}
+        if not limits.get("enabled", False):
+            self._cached_risk_state = None
+            return True, "", {}
+
+        account_info = self.executor.get_account_info()
+        balance = account_info.get("balance") or {}
+        positions_state = self._build_positions_state(account_info.get("positions") or [])
+
+        equity = self._safe_number(balance.get("equity"))
+        cash = self._safe_number(balance.get("cash"))
+        gross_exposure = sum(abs(entry["market_value"]) for entry in positions_state.values())
+        position_count = sum(
+            1 for entry in positions_state.values() if not math.isclose(entry["quantity"], 0.0, abs_tol=1e-9)
+        )
+
+        context = {
+            "equity": equity,
+            "cash": cash,
+            "gross_exposure": gross_exposure,
+            "position_count": position_count,
+            "positions": {symbol: dict(data) for symbol, data in positions_state.items()},
+        }
+
+        portfolio_limits = limits.get("portfolio") or {}
+        max_gross = portfolio_limits.get("max_gross_exposure")
+        if max_gross is not None and gross_exposure >= max_gross:
+            reason = (
+                f"Gross exposure ${gross_exposure:,.2f} already meets configured "
+                f"cap ${max_gross:,.2f}"
+            )
+            logger.warning("Broker risk pre-check failed: %s", reason)
+            self._cached_risk_state = context
+            return False, reason, context
+
+        max_position_count = portfolio_limits.get("max_position_count")
+        if max_position_count is not None and position_count >= max_position_count:
+            reason = (
+                f"Open positions {position_count} already meet broker cap "
+                f"{max_position_count}"
+            )
+            logger.warning("Broker risk pre-check failed: %s", reason)
+            self._cached_risk_state = context
+            return False, reason, context
+
+        max_symbol_percent = portfolio_limits.get("max_symbol_percent")
+        if max_symbol_percent is not None and equity > 0:
+            for symbol_key, entry in positions_state.items():
+                allocation = abs(entry["market_value"]) / equity
+                if allocation > max_symbol_percent + 1e-6:
+                    reason = (
+                        f"{symbol_key} allocation {allocation:.2%} already exceeds "
+                        f"broker cap {max_symbol_percent:.2%}"
+                    )
+                    logger.warning("Broker risk pre-check failed: %s", reason)
+                    self._cached_risk_state = context
+                    return False, reason, context
+
+        for symbol_key, entry in positions_state.items():
+            symbol_limits = self._resolve_symbol_limits(symbol_key)
+            if not symbol_limits:
+                continue
+            max_qty = symbol_limits.get("max_position_qty")
+            if max_qty is not None and abs(entry["quantity"]) > max_qty + 1e-9:
+                reason = (
+                    f"{symbol_key} position size {abs(entry['quantity']):,.2f} already "
+                    f"exceeds configured limit {max_qty:,.2f}"
+                )
+                logger.warning("Broker risk pre-check failed: %s", reason)
+                self._cached_risk_state = context
+                return False, reason, context
+
+            max_notional = symbol_limits.get("max_position_notional")
+            if max_notional is not None and abs(entry["market_value"]) > max_notional + 1e-6:
+                reason = (
+                    f"{symbol_key} exposure ${abs(entry['market_value']):,.2f} already "
+                    f"exceeds configured limit ${max_notional:,.2f}"
+                )
+                logger.warning("Broker risk pre-check failed: %s", reason)
+                self._cached_risk_state = context
+                return False, reason, context
+
+        self._cached_risk_state = {
+            "positions_state": {symbol: dict(data) for symbol, data in positions_state.items()},
+            "equity": equity,
+            "gross_exposure": gross_exposure,
+            "position_count": position_count,
+        }
+        return True, "", context
+
     @staticmethod
     def _safe_number(value: Any) -> float:
-        """尝试将数值转换为 float，失败时返回 0.0。"""
+        """Convert a value to float, returning 0.0 when conversion fails."""
         try:
             if value is None:
                 return 0.0
             return float(value)
         except (TypeError, ValueError):
             return 0.0
+

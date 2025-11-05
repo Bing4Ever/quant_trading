@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 自动化交易调度器模块 - 提供定时任务调度功能
-# NOSONAR - 文件级禁用 SonarQube 检查
+# è‡ªåŠ¨åŒ–äº¤æ˜“è°ƒåº¦å™¨æ¨¡å— - æä¾›å®šæ—¶ä»»åŠ¡è°ƒåº¦åŠŸèƒ½
+# NOSONAR - æ–‡ä»¶çº§ç¦ç”¨ SonarQube æ£€æŸ¥
 
 import sys
 import os
@@ -27,27 +27,27 @@ try:
     from zoneinfo import ZoneInfo
 except ImportError:  # pragma: no cover - fallback for Python < 3.9
     ZoneInfo = None  # type: ignore[assignment]
-# 添加项目根路径到 Python 路径
+# æ·»åŠ é¡¹ç›®æ ¹è·¯å¾„åˆ° Python è·¯å¾„
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class ScheduleFrequency(Enum):
-    """调度频率枚举"""
+    """è°ƒåº¦é¢‘çŽ‡æžšä¸¾"""
 
-    MINUTE = "minute"  # 每分钟
-    EVERY_5_MINUTES = "5min"  # 每5分钟
-    EVERY_15_MINUTES = "15min"  # 每15分钟
-    EVERY_30_MINUTES = "30min"  # 每30分钟
-    HOUR = "hour"  # 每小时
-    EVERY_2_HOURS = "2hours"  # 每2小时
-    EVERY_4_HOURS = "4hours"  # 每4小时
-    DAILY = "daily"  # 每日
-    WEEKLY = "weekly"  # 每周
-    MONTHLY = "monthly"  # 每月
+    MINUTE = "minute"  # æ¯åˆ†é’Ÿ
+    EVERY_5_MINUTES = "5min"  # æ¯5åˆ†é’Ÿ
+    EVERY_15_MINUTES = "15min"  # æ¯15åˆ†é’Ÿ
+    EVERY_30_MINUTES = "30min"  # æ¯30åˆ†é’Ÿ
+    HOUR = "hour"  # æ¯å°æ—¶
+    EVERY_2_HOURS = "2hours"  # æ¯2å°æ—¶
+    EVERY_4_HOURS = "4hours"  # æ¯4å°æ—¶
+    DAILY = "daily"  # æ¯æ—¥
+    WEEKLY = "weekly"  # æ¯å‘¨
+    MONTHLY = "monthly"  # æ¯æœˆ
 
 
 class TaskStatus(Enum):
-    """任务状态枚举"""
+    """ä»»åŠ¡çŠ¶æ€æžšä¸¾"""
 
     PENDING = "pending"
     RUNNING = "running"
@@ -58,7 +58,7 @@ class TaskStatus(Enum):
 
 @dataclass
 class ScheduledTask:  # pylint: disable=too-many-instance-attributes
-    """计划任务数据类"""
+    """è®¡åˆ’ä»»åŠ¡æ•°æ®ç±»"""
 
     task_id: str
     name: str
@@ -73,17 +73,17 @@ class ScheduledTask:  # pylint: disable=too-many-instance-attributes
 
 
 class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
-    """自动化交易调度器"""
+    """è‡ªåŠ¨åŒ–äº¤æ˜“è°ƒåº¦å™¨"""
 
     DEFAULT_WINDOW_START = dt_time(9, 30)
     DEFAULT_WINDOW_END = dt_time(16, 0)
 
     def __init__(self, config_file: str = "config/scheduler_config.json"):
         """
-        初始化调度器
+        åˆå§‹åŒ–è°ƒåº¦å™¨
 
         Args:
-            config_file: 配置文件路径
+            config_file: é…ç½®æ–‡ä»¶è·¯å¾„
         """
         self.config_file = config_file
         self.logger = setup_logger("AutoTradingScheduler")
@@ -92,30 +92,30 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
         self.execution_repo_factory = get_scheduler_execution_repository
         self.trading_window_config = self._load_trading_window_config()
 
-        # 任务存储
+        # ä»»åŠ¡å­˜å‚¨
         self.scheduled_tasks: Dict[str, ScheduledTask] = {}
         self.running_tasks: Dict[str, threading.Thread] = {}
 
-        # 调度器状态
+        # è°ƒåº¦å™¨çŠ¶æ€
         self.is_running = False
         self.scheduler_thread = None
 
-        # 加载配置
+        # åŠ è½½é…ç½®
         self.load_config()
 
-        self.logger.info("AutoTradingScheduler 初始化完成")
+        self.logger.info("AutoTradingScheduler åˆå§‹åŒ–å®Œæˆ")
 
     def load_config(self):
-        """加载调度器配置"""
+        """åŠ è½½è°ƒåº¦å™¨é…ç½®"""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
-                # 恢复计划任务
+                # æ¢å¤è®¡åˆ’ä»»åŠ¡
                 for task_data in config.get("scheduled_tasks", []):
                     try:
-                        # 转换字符串为枚举类型
+                        # è½¬æ¢å­—ç¬¦ä¸²ä¸ºæžšä¸¾ç±»åž‹
                         if "frequency" in task_data and isinstance(
                             task_data["frequency"], str
                         ):
@@ -127,7 +127,7 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                         ):
                             task_data["status"] = TaskStatus(task_data["status"])
 
-                        # 转换日期时间字符串
+                        # è½¬æ¢æ—¥æœŸæ—¶é—´å­—ç¬¦ä¸²
                         if "last_run" in task_data and isinstance(
                             task_data["last_run"], str
                         ):
@@ -144,39 +144,39 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                         task = ScheduledTask(**task_data)
                         self.scheduled_tasks[task.task_id] = task
                     except (TypeError, ValueError, KeyError) as e:
-                        # 单个任务数据不完整或格式错误，跳过并记录
+                        # å•ä¸ªä»»åŠ¡æ•°æ®ä¸å®Œæ•´æˆ–æ ¼å¼é”™è¯¯ï¼Œè·³è¿‡å¹¶è®°å½•
                         self.logger.warning(
-                            "跳过无效的任务数据: %s - %s", task_data, str(e)
+                            "è·³è¿‡æ— æ•ˆçš„ä»»åŠ¡æ•°æ®: %s - %s", task_data, str(e)
                         )
                         continue
 
-                self.logger.info("加载了 %d 个计划任务", len(self.scheduled_tasks))
+                self.logger.info("åŠ è½½äº† %d ä¸ªè®¡åˆ’ä»»åŠ¡", len(self.scheduled_tasks))
             else:
-                # 创建默认配置
+                # åˆ›å»ºé»˜è®¤é…ç½®
                 self.create_default_config()
 
         except json.JSONDecodeError as e:
-            # 配置文件不是有效的 JSON
-            self.logger.error("解析配置文件失败: %s", str(e))
+            # é…ç½®æ–‡ä»¶ä¸æ˜¯æœ‰æ•ˆçš„ JSON
+            self.logger.error("è§£æžé…ç½®æ–‡ä»¶å¤±è´¥: %s", str(e))
             self.create_default_config()
         except (OSError, IOError) as e:
-            # 无法读取文件（权限/不存在等）
-            self.logger.error("读取配置文件失败: %s", str(e))
+            # æ— æ³•è¯»å–æ–‡ä»¶ï¼ˆæƒé™/ä¸å­˜åœ¨ç­‰ï¼‰
+            self.logger.error("è¯»å–é…ç½®æ–‡ä»¶å¤±è´¥: %s", str(e))
             self.create_default_config()
 
     def create_default_config(self):
-        """创建默认配置"""
+        """åˆ›å»ºé»˜è®¤é…ç½®"""
         default_tasks = [
             ScheduledTask(
                 task_id="daily_analysis",
-                name="每日市场分析",
+                name="æ¯æ—¥å¸‚åœºåˆ†æž",
                 frequency=ScheduleFrequency.DAILY,
                 symbols=["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
                 strategies=["all"],
             ),
             ScheduledTask(
                 task_id="weekly_report",
-                name="周度投资报告",
+                name="å‘¨åº¦æŠ•èµ„æŠ¥å‘Š",
                 frequency=ScheduleFrequency.WEEKLY,
                 symbols=["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
                 strategies=["all"],
@@ -187,10 +187,10 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
             self.scheduled_tasks[task.task_id] = task
 
         self.save_config()
-        self.logger.info("创建默认配置完成")
+        self.logger.info("åˆ›å»ºé»˜è®¤é…ç½®å®Œæˆ")
 
     def save_config(self):
-        """保存配置到文件"""
+        """ä¿å­˜é…ç½®åˆ°æ–‡ä»¶"""
         try:
             os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
 
@@ -228,117 +228,117 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                 json.dump(config, f, indent=2, ensure_ascii=False)
 
         except (OSError, IOError, TypeError) as e:
-            self.logger.error("保存配置失败: %s", str(e))
+            self.logger.error("ä¿å­˜é…ç½®å¤±è´¥: %s", str(e))
 
     def add_scheduled_task(self, task: ScheduledTask) -> bool:
         """
-        添加计划任务
+        æ·»åŠ è®¡åˆ’ä»»åŠ¡
 
         Args:
-            task: 计划任务对象
+            task: è®¡åˆ’ä»»åŠ¡å¯¹è±¡
 
         Returns:
-            是否添加成功
+            æ˜¯å¦æ·»åŠ æˆåŠŸ
         """
         try:
             self.scheduled_tasks[task.task_id] = task
             self._schedule_task(task)
             self.save_config()
 
-            self.logger.info("添加计划任务: %s", task.name)
+            self.logger.info("æ·»åŠ è®¡åˆ’ä»»åŠ¡: %s", task.name)
             return True
 
         except (AttributeError, ValueError, TypeError) as e:
-            self.logger.error("添加计划任务失败: %s", str(e))
+            self.logger.error("æ·»åŠ è®¡åˆ’ä»»åŠ¡å¤±è´¥: %s", str(e))
             return False
 
     def remove_scheduled_task(self, task_id: str) -> bool:
         """
-        移除计划任务
+        ç§»é™¤è®¡åˆ’ä»»åŠ¡
 
         Args:
-            task_id: 任务ID
+            task_id: ä»»åŠ¡ID
 
         Returns:
-            是否移除成功
+            æ˜¯å¦ç§»é™¤æˆåŠŸ
         """
         try:
             if task_id in self.scheduled_tasks:
-                # 取消正在运行的任务
+                # å–æ¶ˆæ­£åœ¨è¿è¡Œçš„ä»»åŠ¡
                 if task_id in self.running_tasks:
                     self.cancel_task(task_id)
 
-                # 移除任务
+                # ç§»é™¤ä»»åŠ¡
                 del self.scheduled_tasks[task_id]
                 self.save_config()
 
-                self.logger.info("移除计划任务: %s", task_id)
+                self.logger.info("ç§»é™¤è®¡åˆ’ä»»åŠ¡: %s", task_id)
                 return True
 
-            self.logger.warning("任务不存在: %s", task_id)
+            self.logger.warning("ä»»åŠ¡ä¸å­˜åœ¨: %s", task_id)
             return False
 
         except (KeyError, AttributeError) as e:
-            self.logger.error("移除计划任务失败: %s", str(e))
+            self.logger.error("ç§»é™¤è®¡åˆ’ä»»åŠ¡å¤±è´¥: %s", str(e))
             return False
 
     def pause_task(self, task_id: str) -> bool:
         """
-        暂停任务
+        æš‚åœä»»åŠ¡
 
         Args:
-            task_id: 任务ID
+            task_id: ä»»åŠ¡ID
 
         Returns:
-            是否暂停成功
+            æ˜¯å¦æš‚åœæˆåŠŸ
         """
         try:
             if task_id in self.scheduled_tasks:
                 task = self.scheduled_tasks[task_id]
                 task.enabled = False
                 self.save_config()
-                self.logger.info("暂停任务: %s", task.name)
+                self.logger.info("æš‚åœä»»åŠ¡: %s", task.name)
                 return True
 
-            self.logger.warning("任务不存在: %s", task_id)
+            self.logger.warning("ä»»åŠ¡ä¸å­˜åœ¨: %s", task_id)
             return False
 
         except (KeyError, AttributeError) as e:
-            self.logger.error("暂停任务失败: %s", str(e))
+            self.logger.error("æš‚åœä»»åŠ¡å¤±è´¥: %s", str(e))
             return False
 
     def resume_task(self, task_id: str) -> bool:
         """
-        恢复任务
+        æ¢å¤ä»»åŠ¡
 
         Args:
-            task_id: 任务ID
+            task_id: ä»»åŠ¡ID
 
         Returns:
-            是否恢复成功
+            æ˜¯å¦æ¢å¤æˆåŠŸ
         """
         try:
             if task_id in self.scheduled_tasks:
                 task = self.scheduled_tasks[task_id]
                 task.enabled = True
 
-                # 如果调度器正在运行，重新调度该任务
+                # å¦‚æžœè°ƒåº¦å™¨æ­£åœ¨è¿è¡Œï¼Œé‡æ–°è°ƒåº¦è¯¥ä»»åŠ¡
                 if self.is_running:
                     self._schedule_task(task)
 
                 self.save_config()
-                self.logger.info("恢复任务: %s", task.name)
+                self.logger.info("æ¢å¤ä»»åŠ¡: %s", task.name)
                 return True
 
-            self.logger.warning("任务不存在: %s", task_id)
+            self.logger.warning("ä»»åŠ¡ä¸å­˜åœ¨: %s", task_id)
             return False
 
         except (KeyError, AttributeError) as e:
-            self.logger.error("恢复任务失败: %s", str(e))
+            self.logger.error("æ¢å¤ä»»åŠ¡å¤±è´¥: %s", str(e))
             return False
 
     def _schedule_task(self, task: ScheduledTask):
-        """为任务设置调度"""
+        """ä¸ºä»»åŠ¡è®¾ç½®è°ƒåº¦"""
         if not task.enabled:
             return
 
@@ -360,31 +360,31 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
         elif task.frequency == ScheduleFrequency.EVERY_4_HOURS:
             schedule.every(4).hours.do(job_func)
         elif task.frequency == ScheduleFrequency.DAILY:
-            schedule.every().day.at("09:30").do(job_func)  # 开盘时间
+            schedule.every().day.at("09:30").do(job_func)  # å¼€ç›˜æ—¶é—´
         elif task.frequency == ScheduleFrequency.WEEKLY:
-            schedule.every().monday.at("09:30").do(job_func)  # 周一开盘
+            schedule.every().monday.at("09:30").do(job_func)  # å‘¨ä¸€å¼€ç›˜
         elif task.frequency == ScheduleFrequency.MONTHLY:
-            # 注意：schedule 库不直接支持 month，这里用 day 替代
+            # æ³¨æ„ï¼šschedule åº“ä¸ç›´æŽ¥æ”¯æŒ monthï¼Œè¿™é‡Œç”¨ day æ›¿ä»£
             schedule.every().day.do(job_func)
 
     def execute_task(self, task_id: str):
         """
-        执行指定任务
+        æ‰§è¡ŒæŒ‡å®šä»»åŠ¡
 
         Args:
-            task_id: 任务ID
+            task_id: ä»»åŠ¡ID
         """
         if task_id not in self.scheduled_tasks:
-            self.logger.error("任务不存在: %s", task_id)
+            self.logger.error("ä»»åŠ¡ä¸å­˜åœ¨: %s", task_id)
             return
 
         task = self.scheduled_tasks[task_id]
 
         if task_id in self.running_tasks:
-            self.logger.warning("任务正在运行: %s", task.name)
+            self.logger.warning("ä»»åŠ¡æ­£åœ¨è¿è¡Œ: %s", task.name)
             return
 
-        # 创建任务线程
+        # åˆ›å»ºä»»åŠ¡çº¿ç¨‹
         task_thread = threading.Thread(
             target=self._run_task, args=(task,), name=f"Task-{task_id}"
         )
@@ -394,13 +394,13 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
 
     def _run_task(self, task: ScheduledTask):
         """
-        运行任务的内部方法
+        è¿è¡Œä»»åŠ¡çš„å†…éƒ¨æ–¹æ³•
 
         Args:
-            task: 任务对象
+            task: ä»»åŠ¡å¯¹è±¡
         """
         try:
-            self.logger.info("开始执行任务: %s", task.name)
+            self.logger.info("å¼€å§‹æ‰§è¡Œä»»åŠ¡: %s", task.name)
 
             within_window, window_reason = self._is_within_trading_window()
             if not within_window:
@@ -422,7 +422,39 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                     "timestamp": task.last_run.isoformat(),
                 }
                 self.logger.warning(
-                    "任务 %s 因交易窗口限制被跳过: %s", task.name, window_reason
+                    "ä»»åŠ¡ %s å› äº¤æ˜“çª—å£é™åˆ¶è¢«è·³è¿‡: %s", task.name, window_reason
+                )
+                self._persist_execution_result(
+                    scheduled_task=task,
+                    orchestrated_task=None,
+                    execution_summary=skip_summary,
+                )
+                return
+
+            risk_ok, risk_reason, risk_context = self.task_manager.check_broker_risk_preconditions()
+            if not risk_ok:
+                task.last_run = datetime.now()
+                task.status = TaskStatus.PENDING
+                risk_context = risk_context or {}
+                skip_summary = {
+                    "symbol_count": len(risk_context.get("positions", {})),
+                    "executed_signals": 0,
+                    "rejected_signals": 0,
+                    "total_signals": 0,
+                    "orders": 0,
+                    "task_errors": [risk_reason],
+                    "skipped": True,
+                    "skip_reason": risk_reason,
+                    "risk_context": risk_context,
+                }
+                task.results = {
+                    "status": "skipped",
+                    "reason": risk_reason,
+                    "timestamp": task.last_run.isoformat(),
+                    "risk_context": risk_context,
+                }
+                self.logger.warning(
+                    "Task %s blocked by broker risk limits: %s", task.name, risk_reason
                 )
                 self._persist_execution_result(
                     scheduled_task=task,
@@ -478,23 +510,23 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                 report_file=report_file,
             )
 
-            self.logger.info("任务执行完成: %s", task.name)
+            self.logger.info("ä»»åŠ¡æ‰§è¡Œå®Œæˆ: %s", task.name)
 
         except (RuntimeError, ValueError, AttributeError, OSError) as e:
             task.status = TaskStatus.FAILED
             error_message = str(e)
-            self.logger.error("任务执行失败: %s - %s", task.name, error_message)
+            self.logger.error("ä»»åŠ¡æ‰§è¡Œå¤±è´¥: %s - %s", task.name, error_message)
 
             self.notification_manager.send_error_notification(
                 task_name=task.name, error_message=error_message
             )
 
         finally:
-            # 清理线程引用
+            # æ¸…ç†çº¿ç¨‹å¼•ç”¨
             if task.task_id in self.running_tasks:
                 del self.running_tasks[task.task_id]
 
-            # 保存配置
+            # ä¿å­˜é…ç½®
             self.save_config()
 
     def _load_trading_window_config(self) -> Dict[str, Any]:
@@ -511,7 +543,7 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
             try:
                 tzinfo = ZoneInfo(timezone_name)
             except Exception:  # pragma: no cover - defensive logging
-                self.logger.warning("无法解析交易时区 %s，使用本地时间。", timezone_name)
+                self.logger.warning("æ— æ³•è§£æžäº¤æ˜“æ—¶åŒº %sï¼Œä½¿ç”¨æœ¬åœ°æ—¶é—´ã€‚", timezone_name)
                 tzinfo = None
 
         weekdays_raw = section.get("weekdays", [0, 1, 2, 3, 4])
@@ -559,11 +591,11 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
 
         weekdays: List[int] = config.get("weekdays", [])
         if weekdays and now.weekday() not in weekdays:
-            return False, "当前日期不在允许的交易日范围内"
+            return False, "å½“å‰æ—¥æœŸä¸åœ¨å…è®¸çš„äº¤æ˜“æ—¥èŒƒå›´å†…"
 
         holidays = config.get("holidays", set())
         if holidays and now.date() in holidays:
-            return False, f"{now.date().isoformat()} 属于配置的休市日期"
+            return False, f"{now.date().isoformat()} å±žäºŽé…ç½®çš„ä¼‘å¸‚æ—¥æœŸ"
 
         start_time: Optional[dt_time] = config.get("start_time")
         end_time: Optional[dt_time] = config.get("end_time")
@@ -574,7 +606,7 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
         end_dt = datetime.combine(now.date(), end_time, tzinfo=tzinfo)
 
         if end_dt <= start_dt:
-            self.logger.warning("交易窗口结束时间小于或等于开始时间，忽略窗口检查。")
+            self.logger.warning("äº¤æ˜“çª—å£ç»“æŸæ—¶é—´å°äºŽæˆ–ç­‰äºŽå¼€å§‹æ—¶é—´ï¼Œå¿½ç•¥çª—å£æ£€æŸ¥ã€‚")
             return True, ""
 
         grace = config.get("grace", 0)
@@ -588,7 +620,7 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
 
         tz_label = config.get("timezone_name") or ("local" if tzinfo is None else str(tzinfo))
         reason = (
-            f"当前时间 {now.strftime('%H:%M')} ({tz_label}) 不在允许的交易窗口 "
+            f"å½“å‰æ—¶é—´ {now.strftime('%H:%M')} ({tz_label}) ä¸åœ¨å…è®¸çš„äº¤æ˜“çª—å£ "
             f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}"
         )
         return False, reason
@@ -698,7 +730,7 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
         try:
             repository = factory()
         except Exception as factory_error:  # pragma: no cover - defensive logging
-            self.logger.error("初始化调度执行仓储失败: %s", factory_error)
+            self.logger.error("åˆå§‹åŒ–è°ƒåº¦æ‰§è¡Œä»“å‚¨å¤±è´¥: %s", factory_error)
             return
 
         try:
@@ -718,23 +750,135 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
                 orders=orders_list,
             )
         except Exception as persist_error:  # pragma: no cover - defensive logging
-            self.logger.error("持久化调度执行结果失败: %s", persist_error)
+            self.logger.error("æŒä¹…åŒ–è°ƒåº¦æ‰§è¡Œç»“æžœå¤±è´¥: %s", persist_error)
         finally:
             try:
                 repository.close()
             except Exception:  # pragma: no cover - defensive close
                 pass
 
+    def get_execution_history(
+        self,
+        *,
+        limit: int = 50,
+        task_id: Optional[str] = None,
+        scheduler_status: Optional[str] = None,
+        orchestration_status: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Fetch persisted automation execution history."""
+        factory = getattr(self, "execution_repo_factory", None)
+        if not callable(factory):
+            return []
+
+        repository = None
+        try:
+            repository = factory()
+            records = repository.fetch_recent_executions(
+                limit=limit,
+                task_id=task_id,
+                scheduler_status=scheduler_status,
+                orchestration_status=orchestration_status,
+            )
+            return [self._serialize_execution_record(record) for record in records]
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.error("Failed to load execution history: %s", exc)
+            return []
+        finally:
+            if repository is not None:
+                try:
+                    repository.close()
+                except Exception:
+                    pass
+
+    def _serialize_execution_record(self, record: Any) -> Dict[str, Any]:
+        """Transform an execution ORM record into a serializable dictionary."""
+        def _safe_json_load(value: Any, default: Any):
+            if not value:
+                return default
+            try:
+                return json.loads(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _iso(value: Any) -> Optional[str]:
+            if isinstance(value, datetime):
+                return value.isoformat()
+            return None
+
+        summary = _safe_json_load(getattr(record, "summary_json", None), {})
+        symbol_details = _safe_json_load(getattr(record, "symbol_details_json", None), {})
+        account_snapshot = _safe_json_load(getattr(record, "account_snapshot_json", None), {})
+        payload = _safe_json_load(getattr(record, "payload_json", None), {})
+        task_errors_raw = _safe_json_load(getattr(record, "task_errors_json", None), [])
+
+        if isinstance(task_errors_raw, (list, tuple, set)):
+            task_errors = [str(item) for item in task_errors_raw if item]
+        elif task_errors_raw:
+            task_errors = [str(task_errors_raw)]
+        else:
+            task_errors = []
+
+        orders_payload: List[Dict[str, Any]] = []
+        for order in getattr(record, "orders", []) or []:
+            raw_order = _safe_json_load(getattr(order, "raw_order_json", None), {})
+            orders_payload.append({
+                "order_id": getattr(order, "order_id", None),
+                "symbol": getattr(order, "symbol", None),
+                "action": getattr(order, "action", None),
+                "status": getattr(order, "status", None),
+                "quantity": getattr(order, "quantity", None),
+                "filled_quantity": getattr(order, "filled_quantity", None),
+                "average_price": getattr(order, "average_price", None),
+                "submitted_at": _iso(getattr(order, "submitted_at", None)),
+                "completed_at": _iso(getattr(order, "completed_at", None)),
+                "raw": raw_order,
+            })
+
+        risk_model = getattr(record, "risk_snapshot", None)
+        risk_payload: Optional[Dict[str, Any]] = None
+        if risk_model is not None:
+            risk_payload = {
+                "equity": getattr(risk_model, "equity", None),
+                "cash": getattr(risk_model, "cash", None),
+                "buying_power": getattr(risk_model, "buying_power", None),
+                "exposure": getattr(risk_model, "exposure", None),
+                "maintenance_margin": getattr(risk_model, "maintenance_margin", None),
+                "captured_at": _iso(getattr(risk_model, "captured_at", None)),
+                "raw": _safe_json_load(getattr(risk_model, "raw_metrics_json", None), {}),
+            }
+
+        return {
+            "run_id": getattr(record, "run_id", None),
+            "task_id": getattr(record, "task_id", None),
+            "task_name": getattr(record, "task_name", None),
+            "scheduler_status": getattr(record, "scheduler_status", None),
+            "orchestration_status": getattr(record, "orchestration_status", None),
+            "started_at": _iso(getattr(record, "started_at", None)),
+            "completed_at": _iso(getattr(record, "completed_at", None)),
+            "executed_signals": getattr(record, "executed_signals", None),
+            "rejected_signals": getattr(record, "rejected_signals", None),
+            "total_signals": getattr(record, "total_signals", None),
+            "order_count": getattr(record, "order_count", None),
+            "task_errors": task_errors,
+            "summary": summary,
+            "symbol_details": symbol_details,
+            "account_snapshot": account_snapshot,
+            "payload": payload,
+            "orders": orders_payload,
+            "risk_snapshot": risk_payload,
+            "created_at": _iso(getattr(record, "created_at", None)),
+        }
+
     def _generate_report(self, task: ScheduledTask, summary: Optional[Dict[str, Any]] = None) -> str:
         """
-        生成任务报告
+        ç”Ÿæˆä»»åŠ¡æŠ¥å‘Š
 
         Args:
-            task: 任务对象
-            summary: 已计算的执行摘要
+            task: ä»»åŠ¡å¯¹è±¡
+            summary: å·²è®¡ç®—çš„æ‰§è¡Œæ‘˜è¦
 
         Returns:
-            报告文件路径
+            æŠ¥å‘Šæ–‡ä»¶è·¯å¾„
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -760,25 +904,25 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
             with open(report_file, "w", encoding="utf-8") as f:
                 json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
 
-            self.logger.info("报告已生成: %s", report_file)
+            self.logger.info("æŠ¥å‘Šå·²ç”Ÿæˆ: %s", report_file)
             return report_file
 
         except (OSError, IOError, TypeError, ValueError) as e:
-            self.logger.error("生成报告失败: %s", str(e))
+            self.logger.error("ç”ŸæˆæŠ¥å‘Šå¤±è´¥: %s", str(e))
             return ""
 
     def _create_results_summary(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """
-        创建结果摘要
+        åˆ›å»ºç»“æžœæ‘˜è¦
 
         Args:
-            results: 分析结果
+            results: åˆ†æžç»“æžœ
 
         Returns:
-            结果摘要
+            ç»“æžœæ‘˜è¦
         """
         if not results:
-            return {"message": "无分析结果"}
+            return {"message": "æ— åˆ†æžç»“æžœ"}
 
         if isinstance(results, dict) and "symbols" in results and "signals" in results:
             symbol_details = results.get("symbols") or {}
@@ -828,15 +972,15 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
             "overall_performance": {},
         }
 
-        # 统计每只股票的最佳策略
+        # ç»Ÿè®¡æ¯åªè‚¡ç¥¨çš„æœ€ä½³ç­–ç•¥
         for symbol, data in results.items():
             comparison = data.get("comparison", [])
             if comparison:
-                best_strategy = comparison[0]  # 第一个是最佳策略
+                best_strategy = comparison[0]  # ç¬¬ä¸€ä¸ªæ˜¯æœ€ä½³ç­–ç•¥
                 summary["best_strategies"][symbol] = {
-                    "strategy": best_strategy.get("策略名称"),
-                    "return": best_strategy.get("总收益率"),
-                    "sharpe": best_strategy.get("夏普比率"),
+                    "strategy": best_strategy.get("ç­–ç•¥åç§°"),
+                    "return": best_strategy.get("æ€»æ”¶ç›ŠçŽ‡"),
+                    "sharpe": best_strategy.get("å¤æ™®æ¯”çŽ‡"),
                 }
 
         return summary
@@ -874,79 +1018,79 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
         return None
 
     def start_scheduler(self):
-        """启动调度器"""
+        """å¯åŠ¨è°ƒåº¦å™¨"""
         if self.is_running:
-            self.logger.warning("调度器已经在运行")
+            self.logger.warning("è°ƒåº¦å™¨å·²ç»åœ¨è¿è¡Œ")
             return
 
         self.is_running = True
 
-        # 设置所有任务的调度
+        # è®¾ç½®æ‰€æœ‰ä»»åŠ¡çš„è°ƒåº¦
         for task in self.scheduled_tasks.values():
             self._schedule_task(task)
 
-        # 启动调度器线程
+        # å¯åŠ¨è°ƒåº¦å™¨çº¿ç¨‹
         self.scheduler_thread = threading.Thread(
             target=self._run_scheduler, name="SchedulerThread"
         )
         self.scheduler_thread.daemon = True
         self.scheduler_thread.start()
 
-        self.logger.info("自动化交易调度器已启动")
+        self.logger.info("è‡ªåŠ¨åŒ–äº¤æ˜“è°ƒåº¦å™¨å·²å¯åŠ¨")
 
     def _run_scheduler(self):
-        """调度器主循环"""
+        """è°ƒåº¦å™¨ä¸»å¾ªçŽ¯"""
         while self.is_running:
             try:
                 schedule.run_pending()
                 time.sleep(1)
             except (RuntimeError, ValueError, AttributeError) as e:
-                self.logger.error("调度器运行错误: %s", str(e))
+                self.logger.error("è°ƒåº¦å™¨è¿è¡Œé”™è¯¯: %s", str(e))
                 time.sleep(5)
 
     def stop_scheduler(self):
-        """停止调度器"""
+        """åœæ­¢è°ƒåº¦å™¨"""
         self.is_running = False
 
-        # 取消所有运行中的任务
+        # å–æ¶ˆæ‰€æœ‰è¿è¡Œä¸­çš„ä»»åŠ¡
         for task_id in self.running_tasks:
             self.cancel_task(task_id)
 
-        # 清除所有调度任务
+        # æ¸…é™¤æ‰€æœ‰è°ƒåº¦ä»»åŠ¡
         schedule.clear()
 
-        self.logger.info("自动化交易调度器已停止")
+        self.logger.info("è‡ªåŠ¨åŒ–äº¤æ˜“è°ƒåº¦å™¨å·²åœæ­¢")
 
     def cancel_task(self, task_id: str):
         """
-        取消正在运行的任务
+        å–æ¶ˆæ­£åœ¨è¿è¡Œçš„ä»»åŠ¡
 
         Args:
-            task_id: 任务ID
+            task_id: ä»»åŠ¡ID
         """
         if task_id in self.running_tasks:
-            # 注意：Python线程无法强制终止，这里只是标记
+            # æ³¨æ„ï¼šPythonçº¿ç¨‹æ— æ³•å¼ºåˆ¶ç»ˆæ­¢ï¼Œè¿™é‡Œåªæ˜¯æ ‡è®°
             if task_id in self.scheduled_tasks:
                 self.scheduled_tasks[task_id].status = TaskStatus.CANCELLED
             del self.running_tasks[task_id]
-            self.logger.info("任务已取消: %s", task_id)
+            self.logger.info("ä»»åŠ¡å·²å–æ¶ˆ: %s", task_id)
 
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
-        获取任务状态
+        èŽ·å–ä»»åŠ¡çŠ¶æ€
 
         Args:
-            task_id: 任务ID
+            task_id: ä»»åŠ¡ID
 
         Returns:
-            任务状态信息
+            ä»»åŠ¡çŠ¶æ€ä¿¡æ¯
         """
         if task_id not in self.scheduled_tasks:
             return None
 
         task = self.scheduled_tasks[task_id]
 
-        # 处理 frequency 可能是字符串或枚举的情况
+        # å¤„ç† frequency å¯èƒ½æ˜¯å­—ç¬¦ä¸²æˆ–æžšä¸¾çš„æƒ…å†µ
         frequency_value = (
             task.frequency.value
             if isinstance(task.frequency, ScheduleFrequency)
@@ -969,26 +1113,26 @@ class AutoTradingScheduler:  # pylint: disable=too-many-instance-attributes
 
     def list_all_tasks(self) -> List[Dict[str, Any]]:
         """
-        列出所有任务
+        åˆ—å‡ºæ‰€æœ‰ä»»åŠ¡
 
         Returns:
-            任务列表
+            ä»»åŠ¡åˆ—è¡¨
         """
         return [self.get_task_status(task_id) for task_id in self.scheduled_tasks]
 
 
 if __name__ == "__main__":
-    # 使用示例
+    # ä½¿ç”¨ç¤ºä¾‹
     scheduler = AutoTradingScheduler()
 
     try:
         scheduler.start_scheduler()
-        print("调度器已启动，按 Ctrl+C 停止...")
+        print("è°ƒåº¦å™¨å·²å¯åŠ¨ï¼ŒæŒ‰ Ctrl+C åœæ­¢...")
 
         while True:
             time.sleep(1)
 
     except KeyboardInterrupt:
-        print("\n正在停止调度器...")
+        print("\næ­£åœ¨åœæ­¢è°ƒåº¦å™¨...")
         scheduler.stop_scheduler()
-        print("调度器已停止")
+        print("è°ƒåº¦å™¨å·²åœæ­¢")
