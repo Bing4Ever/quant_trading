@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
-高级交易引擎。
+ 高级交易引擎。
 
-负责协调数据获取、策略评估、风险控制与订单执行，从而驱动自动化交易流程。
+ 负责协调数据获取、策略评估、风险控制与订单执行，从而驱动自动化交易流程。
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional, Tuple
+from pprint import pformat
 
 import schedule
+import pandas as pd
 
 from config import config
 from src.tradingagent.modules.data_provider import DataProvider
@@ -30,6 +33,9 @@ sys.path.insert(0, str(project_root))
 
 class AdvancedTradingEngine:
     """整合策略执行与风险控制的高阶交易循环。"""
+
+    DEFAULT_SIGNAL_LOOKBACK_DAYS = 120
+    DEFAULT_REQUIRED_SIGNAL_COLUMNS: Tuple[str, ...] = ("Signal",)
 
     def __init__(self) -> None:
         """初始化依赖组件、内部状态与日志系统。"""
@@ -59,6 +65,10 @@ class AdvancedTradingEngine:
         ]
         self.commission_rate = 0.001  # 0.1%
         self.trade_history: list[Dict[str, object]] = []
+        self.signal_lookback_days = int(
+            config.get("advanced_engine.signal_lookback_days", self.DEFAULT_SIGNAL_LOOKBACK_DAYS)
+        )
+        self.required_signal_columns = self._load_required_signal_columns()
 
         self.setup_logging()
         self.risk_manager.update_daily_capital(self.current_capital)
@@ -110,15 +120,20 @@ class AdvancedTradingEngine:
 
         return prices
 
-    def analyze_market(self) -> Dict[str, Dict[str, float]]:
+    def analyze_market(
+        self, *, required_columns: Optional[Iterable[str]] = None
+    ) -> Dict[str, Dict[str, float]]:
         """为观察列表生成交易信号。"""
         signals: Dict[str, Dict[str, float]] = {}
+        required = self._normalise_required_columns(required_columns)
 
         for symbol in self.watch_list:
             try:
                 data = self.data_provider.get_historical_data(
                     symbol,
-                    (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d"),
+                    (
+                        datetime.now() - timedelta(days=self.signal_lookback_days)
+                    ).strftime("%Y-%m-%d"),
                     datetime.now().strftime("%Y-%m-%d"),
                 )
 
@@ -126,17 +141,70 @@ class AdvancedTradingEngine:
                     continue
 
                 strategy_signals = self.strategy.generate_signals(data)
-                if not strategy_signals.empty:
-                    latest_signal = strategy_signals.iloc[-1]
-                    signals[symbol] = {
-                        "action": latest_signal["Signal"],
-                        "price": float(data["close"].iloc[-1]),
-                        "confidence": abs(latest_signal.get("Confidence", 0.5)),
-                    }
+                self.logger.debug("Generated signals for %s", pformat(strategy_signals))
+                if (
+                    not isinstance(strategy_signals, pd.DataFrame)
+                    or strategy_signals.empty
+                ):
+                    continue
+
+                missing_columns = [
+                    column for column in required if column not in strategy_signals.columns
+                ]
+                if missing_columns:
+                    self.logger.debug(
+                        "Missing required columns %s for %s; skipping.",
+                        ", ".join(missing_columns),
+                        symbol,
+                    )
+                    continue
+
+                clean_signals = strategy_signals.dropna(subset=required) if required else strategy_signals
+                if clean_signals.empty:
+                    self.logger.debug(
+                        "No actionable signals for %s after dropping NaNs.", symbol
+                    )
+                    continue
+
+                latest_signal = clean_signals.iloc[-1]
+                action_column = required[0] if required else "Signal"
+                action = latest_signal.get(action_column)
+                if action is None or (isinstance(action, float) and math.isnan(action)):
+                    self.logger.debug("Latest signal missing action for %s; skipping.", symbol)
+                    continue
+
+                confidence = latest_signal.get("Confidence")
+                if confidence is None or (isinstance(confidence, float) and math.isnan(confidence)):
+                    confidence = latest_signal.get("signal_strength", 0.5)
+
+                signals[symbol] = {
+                    "action": action,
+                    "price": float(data["close"].iloc[-1]),
+                    "confidence": abs(confidence),
+                }
             except (ValueError, KeyError, TypeError) as exc:
                 self.logger.error("Signal generation failed for %s: %s", symbol, exc)
 
         return signals
+
+    def _load_required_signal_columns(self) -> Tuple[str, ...]:
+        raw = config.get(
+            "advanced_engine.required_signal_columns", self.DEFAULT_REQUIRED_SIGNAL_COLUMNS
+        )
+        if isinstance(raw, (list, tuple, set)):
+            cleaned = tuple(str(col).strip() for col in raw if str(col).strip())
+            return cleaned or self.DEFAULT_REQUIRED_SIGNAL_COLUMNS
+        if isinstance(raw, str) and raw.strip():
+            return (raw.strip(),)
+        return self.DEFAULT_REQUIRED_SIGNAL_COLUMNS
+
+    def _normalise_required_columns(
+        self, required_columns: Optional[Iterable[str]]
+    ) -> Tuple[str, ...]:
+        if required_columns is None:
+            return self.required_signal_columns
+        cleaned = tuple(str(col).strip() for col in required_columns if str(col).strip())
+        return cleaned
 
     # --------------------------------------------------------------------- #
     # 交易执行流程
@@ -245,7 +313,7 @@ class AdvancedTradingEngine:
         """对当前持仓进行止损与止盈检查。"""
         current_prices = self.get_current_prices()
 
-        for symbol in list(self.risk_manager.get_all_positions().keys()):
+        for symbol in self.risk_manager.get_all_positions():
             if symbol not in current_prices:
                 continue
 

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """量化交易系统主启动器 - 提供统一的交易引擎启动界面"""
 
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -85,6 +86,10 @@ def handle_choice(choice: str) -> bool:
 
 def main():
     """主函数 - 启动量化交易系统主菜单"""
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
     while True:
         try:
             display_main_menu()
