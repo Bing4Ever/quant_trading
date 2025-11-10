@@ -10,15 +10,18 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Activate conda (assumes Miniconda installed under $HOME/miniconda)
-if [[ -f "${HOME}/miniconda/etc/profile.d/conda.sh" ]]; then
+# Activate conda, honoring CONDA_PROFILE first (useful for systemd)
+if [[ -n "${CONDA_PROFILE:-}" && -f "${CONDA_PROFILE}" ]]; then
+    # shellcheck source=/dev/null
+    source "${CONDA_PROFILE}"
+elif [[ -f "${HOME}/miniconda/etc/profile.d/conda.sh" ]]; then
     # shellcheck source=/dev/null
     source "${HOME}/miniconda/etc/profile.d/conda.sh"
 elif [[ -f "/opt/conda/etc/profile.d/conda.sh" ]]; then
     # shellcheck source=/dev/null
     source "/opt/conda/etc/profile.d/conda.sh"
 else
-    echo "Unable to locate conda.sh. Please adjust the path in scripts/start_headless_live.sh."
+    echo "Unable to locate conda.sh. Please adjust CONDA_PROFILE or scripts/start_headless_live.sh."
     exit 1
 fi
 
