@@ -5,58 +5,49 @@
 ![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![Automation](https://img.shields.io/badge/automation-80%25-orange.svg)
 
-## Execution Flow & Entry Points
+一个专业的量化交易自动化系统，支持多策略回测分析和完整的自动化交易功能。系统已从**手动分析**升级为**自动运行 + 自动报告 + 可实盘接入**的完整自动化平台。
 
-### Execution Backbone
-- **Scheduler bootstrap** – `AutoTradingScheduler` loads `config/scheduler_config.json`, wires up `NotificationManager`, `TaskManager`, and the execution repository factory, then restores any persisted tasks before the scheduling thread starts (`src/tradingservice/services/automation/scheduler.py:75`, `src/tradingservice/services/automation/scheduler.py:81`, `src/tradingservice/services/automation/scheduler.py:108`).
-- **Guard rails** – Each run first enforces the configurable trading window and then calls `TaskManager.check_broker_risk_preconditions()`; violations mark the run as skipped while still persisting the context for auditability (`src/tradingservice/services/automation/scheduler.py:405`, `src/tradingservice/services/automation/scheduler.py:434`).
-- **Task orchestration** – When a run is approved, the scheduler syncs task metadata and invokes `TaskManager.execute_task`, which clears state, runs `MultiStrategyRunner`, generates signals, sizes trades, enforces risk, executes orders, and writes a normalized summary back to the orchestrated task (`src/tradingservice/services/orchestration/task_manager.py:41`, `src/tradingservice/services/orchestration/task_manager.py:139`, `src/tradingservice/services/orchestration/task_manager.py:267`).
-- **Reporting & audit** – The scheduler extracts execution payloads (symbols, orders, risk snapshots) and persists them via `SchedulerExecutionRepository`, then reuses the same summary for report generation and notifications; the API surfaces the history through `/api/scheduler/executions` (`src/tradingservice/services/automation/scheduler.py:659`, `src/tradingservice/api/services/scheduler_service.py:114`, `src/tradingservice/api/models/scheduler_models.py:52`).
+## 🎯 项目概述
 
-### How to Run It
-- **CLI launcher** – `python main.py` opens the console menu so you can start the quick/live/advanced trading engines on demand (`main.py:19`, `main.py:48`, `main.py:86`).
-- **Standalone automation** – `python src/tradingservice/services/automation/scheduler.py` boots the `AutoTradingScheduler` loop directly for unattended scheduling (`src/tradingservice/services/automation/scheduler.py:1124`).
-- **REST API** – `uvicorn src.tradingservice.api.main:app --host 0.0.0.0 --port 8000` exposes `/api/scheduler`, `/api/tasks`, `/api/strategies`, etc.; application startup initializes the same scheduler instance through dependency injection so Ops can control it remotely (`src/tradingservice/api/main.py:48`, `src/tradingservice/api/main.py:87`, `src/tradingservice/api/main.py:136`).
+这是一个完整的量化交易系统，具备以下核心能力：
+- **🔄 多策略并行分析**: 4种交易策略同时运行比较
+- **📊 实时数据监控**: 实时股价监控和交易信号检测
+- **🤖 自动化任务调度**: 定时执行交易策略分析
+- **📈 智能通知系统**: 重要信号自动推送
+- **📋 完整日志记录**: 所有交易决策和执行记录
 
-一个面向实时交易的自动化系统：AutoTradingScheduler 负责调度、任务守护与执行闭环，TaskManager 执行策略/风控/下单，所有结果被落库并复用于通知、报表与 API。这一版本已经把“调度 → 策略执行 → 审计”闭环跑通，具备实盘前的最小可行系统。
-
-## 🎯 当前状态
-
-- ✅ AutoTradingScheduler 统一负责调度、交易窗口校验、经纪商风险前置检查以及 TaskManager 执行。
-- ✅ TaskManager 串联数据、策略、信号、风控、下单、反馈，输出标准化 Summary。
-- ✅ 执行结果（signals/orders/risk snapshot）和报告全部持久化，可通过 `/api/scheduler/executions` 读取。
-- ✅ CLI、独立脚本与 FastAPI 共用同一个调度实例，便于本地/远端运维。
-- ⚙️ 下一阶段聚焦可观测性、风险限额与 Azure 端到端监控（详见下方路线图）。
-
-## 🏗️ 系统架构（精选目录）
+## 🏗️ 系统架构
 
 ```
 quant_trading/
-├── main.py                                   # CLI 启动器（选择快速/实时/高级引擎）
-├── src/tradingservice/
-│   ├── services/
-│   │   ├── automation/scheduler.py           # AutoTradingScheduler 调度线程与执行闭环
-│   │   └── orchestration/task_manager.py     # TaskManager：策略、信号、风险、下单流水线
-│   ├── api/
-│   │   ├── main.py                           # FastAPI 入口，注入共享调度实例
-│   │   ├── routes/scheduler.py               # Scheduler 控制与历史查询
-│   │   ├── services/scheduler_service.py     # API Service 层，复用执行仓储
-│   │   └── models/scheduler_models.py        # 执行记录/状态响应模型
-│   └── services/orchestration/...            # 策略 runner、broker/risk 适配器
-├── config/
-│   └── scheduler_config.json                 # 已计划任务、调度参数、窗口配置
-├── docs/LIVE_TRADING_ROADMAP.md              # 最新实盘路线图与状态
-└── tests/                                    # 单元与集成测试
+├── 📊 核心功能
+│   ├── strategies/               # 交易策略库
+│   ├── backtesting/             # 回测引擎
+│   └── portfolio/               # 投资组合管理
+│
+├── 🤖 自动化模块 (新功能)
+│   ├── automation/
+│   │   ├── scheduler.py         # 自动化调度器 ✅
+│   │   ├── real_time_monitor.py # 实时数据监控 ✅
+│   │
+│   └── utils/
+│       ├── logger.py            # 交易日志系统 ✅
+│       └── notification.py     # 多渠道通知系统 ✅
+│
+└── 📁 数据存储
+    ├── data/                    # 市场数据
+    ├── logs/                    # 系统日志
+    └── exports/                 # 导出报告
 ```
 
 ## ✨ 特性
 
-- 🤖 **自动调度闭环**：AutoTradingScheduler 统一管理任务生命周期、线程、状态与配置持久化。
-- 🕒 **可配置交易窗口**：支持时区、工作日、节假日、缓冲期，窗口外自动跳过并记录原因。
-- 🛡️ **双重风险防线**：运行前检查经纪商风险限额，运行中 TaskManager 风控与仓位控制。
-- 📡 **策略执行流水线**：MultiStrategyRunner + SignalGenerator + OrderExecutor，输出可审计 summary。
-- 📬 **通知与报告**：调度器复用执行 summary 生成报告，并向通知渠道推送成功/失败/跳过信息。
-- 📜 **审计 & API**：执行记录持久化，可通过 FastAPI `/api/scheduler/executions` 或未来 WebSocket 订阅。
+- 📊 **数据管理**: 自动化市场数据获取和存储
+- 🔄 **策略开发**: 交易策略实现框架
+- 📈 **回测引擎**: 强大的回测和性能分析
+- ⚠️ **风险管理**: 高级风险评估和仓位管理
+- 📊 **投资组合优化**: 现代投资组合理论实现
+- 🤖 **机器学习**: 与ML模型集成进行信号生成
 
 ## 🏗️ 项目结构
 
@@ -230,22 +221,19 @@ pytest tests/test_basic.py -v
 - 更新相关文档
 - 确保所有测试通过
 
-## 📈 路线图（来自 docs/LIVE_TRADING_ROADMAP.md）
+## 📈 路线图
 
-### 已完成
-- ✅ AutoTradingScheduler 全量接入 TaskManager，统一执行/落库/通知。
-- ✅ Trading window enforcement + broker 风控前置，跳过的运行同样记录在案。
-- ✅ 执行 summary 重用到报告、通知与 `/api/scheduler/executions` API。
+### Version 1.1 (计划中)
+- [ ] 更多技术指标
+- [ ] 机器学习策略模板
+- [ ] 实时交易接口
+- [ ] Web界面
 
-### Week of 2025-11-03（Operational Hardening）
-- [ ] 将调度执行历史通过 API/WebSocket 暴露给实时看板与事后分析。
-- [ ] 在交易窗口之外叠加经纪商级别风险限额（单品种/组合），做到出单前双重校验。
-- [ ] 强化 Azure 运维：`/api/scheduler` 与 AutoTradingScheduler 状态对齐、暴露持久化字段，并补齐 start/stop/报警文档。
-
-### 后续建议
-- [ ] 在 SchedulerService 响应中追踪 `last_execution` / `next_execution`。
-- [ ] 为 Scheduler ↔ TaskManager 集成添加自动化冒烟测试（mock broker/data）。
-- [ ] 完成 IBKR 集成和更高级别实盘环境前的 30 天 mock run。
+### Version 1.2 (规划中)
+- [ ] 加密货币支持
+- [ ] 期货/期权策略
+- [ ] 高频交易框架
+- [ ] 云端部署支持
 
 ## 🌟 致谢
 
