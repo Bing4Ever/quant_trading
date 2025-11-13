@@ -6,6 +6,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 import pandas as pd
@@ -42,6 +43,54 @@ def sample_data(data_fetcher: DataFetcher):
         end_date.strftime("%Y-%m-%d"),
     )
     return data
+
+
+def test_data_fetcher_respects_provider_override(monkeypatch):
+    """
+    Ensure that passing `provider` selects the matching broker configuration.
+    """
+    from src.tradingagent.modules.data_provider import data_fetcher as module
+
+    recorded: Dict[str, Any] = {}
+
+    class _DummyBroker:
+        def __init__(self):
+            self._connected = False
+
+        def connect(self) -> bool:
+            self._connected = True
+            return True
+
+        def is_connected(self) -> bool:
+            return self._connected
+
+    class _DummyConfig:
+        def resolve_broker(self, broker_id, **overrides):
+            recorded["broker_id"] = broker_id
+            recorded["overrides"] = overrides
+            return "yfinance", {"mock": True}
+
+    monkeypatch.setattr(module, "config", _DummyConfig())
+
+    def _fake_create(cls, broker_type, **params):
+        recorded["broker_type"] = broker_type
+        recorded["params"] = params
+        return _DummyBroker()
+
+    monkeypatch.setattr(
+        module.BrokerFactory,
+        "create",
+        classmethod(_fake_create),
+    )
+
+    fetcher = module.DataFetcher(provider="yfinance")
+    broker = fetcher._ensure_broker()
+
+    assert recorded["broker_id"] == "yfinance"
+    assert recorded["broker_type"] == "yfinance"
+    assert recorded["overrides"] == {}
+    assert recorded["params"] == {"mock": True}
+    assert broker.is_connected()
 
 
 def test_data_fetcher_initialization():

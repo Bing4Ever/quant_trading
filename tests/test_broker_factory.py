@@ -1,11 +1,14 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import config as app_config
+from src.tradingagent.core import brokers as broker_module
 from src.tradingagent.core.brokers import BrokerFactory, SimulationBroker
 
 
@@ -47,3 +50,16 @@ def test_register_custom_broker(monkeypatch):
 def test_alpaca_registered():
     """验证 Alpaca 券商已默认注册。"""
     assert "alpaca" in BrokerFactory.registered_brokers()
+
+
+def test_alpaca_builder_rejects_whitespace_credentials():
+    """Ensure Alpaca credentials without trimming raise early errors."""
+    with pytest.raises(ValueError):
+        broker_module._alpaca_builder(api_key=" ABC123 ", api_secret="SECRET123")
+
+
+def test_alpaca_builder_rejects_special_characters():
+    """Ensure Alpaca credentials cannot contain non-alphanumeric characters."""
+    with pytest.raises(ValueError):
+        broker_module._alpaca_builder(api_key="ABC$123", api_secret="SECRET123")
+

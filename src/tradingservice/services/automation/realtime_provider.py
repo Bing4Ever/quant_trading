@@ -122,8 +122,8 @@ class PollingDataProvider(RealTimeDataProvider):
             start_dt = end_dt - timedelta(minutes=30)
             history = self.data_provider.get_historical_data(
                 symbol=symbol,
-                start_date=start_dt.strftime("%Y-%m-%d"),
-                end_date=end_dt.strftime("%Y-%m-%d"),
+                start_date=start_dt.isoformat(),
+                end_date=end_dt.isoformat(),
                 interval="1m",
             )
             if history is not None and not history.empty:
@@ -174,8 +174,8 @@ class PollingDataProvider(RealTimeDataProvider):
             start_dt = end_dt - timedelta(minutes=5)
             history = self.data_provider.get_historical_data(
                 symbol=symbol,
-                start_date=start_dt.strftime("%Y-%m-%d"),
-                end_date=end_dt.strftime("%Y-%m-%d"),
+                start_date=start_dt.isoformat(),
+                end_date=end_dt.isoformat(),
                 interval="1m",
             )
             if history is None or history.empty:

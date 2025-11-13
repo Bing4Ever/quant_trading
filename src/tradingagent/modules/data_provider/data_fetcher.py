@@ -25,6 +25,7 @@ class DataFetcher:
         self,
         broker: Optional[IBroker] = None,
         *,
+        provider: Optional[str] = None,
         broker_id: Optional[str] = None,
         **broker_overrides: Any,
     ) -> None:
@@ -33,13 +34,14 @@ class DataFetcher:
 
         Args:
             broker: Pre-configured broker instance implementing IBroker.
-            broker_id: Broker identifier registered with BrokerFactory/config.
             provider: Backwards-compatible alias for broker_id.
+            broker_id: Broker identifier registered with BrokerFactory/config.
             **broker_overrides: Extra keyword arguments forwarded to broker resolution.
         """
-        self._requested_broker_id = broker_id
-        if isinstance(self._requested_broker_id, str):
-            self._requested_broker_id = self._requested_broker_id.lower()
+        requested_id = broker_id or provider
+        if isinstance(requested_id, str):
+            requested_id = requested_id.lower()
+        self._requested_broker_id = requested_id
 
         self._broker_overrides = dict(broker_overrides)
 
