@@ -200,12 +200,15 @@ class DataFetcher:
         """
         Convert broker bar data into a normalised DataFrame.
         """
+        expected_columns = ["open", "high", "low", "close", "volume"]
         if not bars:
-            raise ValueError(f"No data found for symbol {symbol}")
+            # Return a normalized empty frame so callers can handle the absence of data
+            # without relying on exceptions.
+            return pd.DataFrame(columns=expected_columns)
 
         df = pd.DataFrame(bars)
         if df.empty:
-            raise ValueError(f"No data found for symbol {symbol}")
+            return pd.DataFrame(columns=expected_columns)
 
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
@@ -221,13 +224,12 @@ class DataFetcher:
         df.columns = [str(col).lower() for col in df.columns]
         df = df.sort_index()
 
-        expected = ["open", "high", "low", "close", "volume"]
-        for column in expected:
+        for column in expected_columns:
             if column not in df.columns:
                 df[column] = pd.NA
 
-        df = df[expected]
-        for column in expected:
+        df = df[expected_columns]
+        for column in expected_columns:
             df[column] = pd.to_numeric(df[column], errors="coerce")
 
         return df
